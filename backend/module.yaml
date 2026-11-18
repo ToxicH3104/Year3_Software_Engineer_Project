@@ -1,0 +1,20 @@
+product: jvm/app
+settings:
+  jvm:
+    mainClass: campus.ApplicationKt
+  kotlin:
+    serialization: enabled
+  ktor: enabled
+dependencies:
+  - $ktor.server.core
+  - $ktor.server.netty
+  - $ktor.server.contentNegotiation
+  - $ktor.serialization.kotlinx.json
+  - $ktor.server.statusPages
+  - org.xerial:sqlite-jdbc:3.47.1.0
+  - com.google.zxing:core:3.5.3
+  - ch.qos.logback:logback-classic:1.5.38
+test-dependencies:
+  - $ktor.server.testHost
+  - io.kotest:kotest-framework-engine:6.2.2
+  - io.kotest:kotest-runner-junit5:6.2.2: runtime-only
