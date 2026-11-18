@@ -132,6 +132,154 @@ private fun scenario(block: suspend Fixture.() -> Unit) = testApplication {
 
 class WorkflowTest :
     FreeSpec({
+        "Club teachers grant organiser access without replacing a student's account" {
+            scenario {
+                val teacher = login("T001")
+                val student = login("S001")
+                val organiser = login("O001")
+                val roster = "/teacher/clubs/guitar/organisers"
+                val grant = obj("universityId" to "s001", "reason" to "Elected by club members")
+                val (_, qr) = published(organiser, teacher)
+                val booking = request(HttpMethod.Post, "/register/$qr", student).asObject()
+
+                request(HttpMethod.Get, "/organiser/clubs", student).expect(403)
+                request(HttpMethod.Post, roster, null, grant).expect(401)
+                request(HttpMethod.Post, roster, student, grant).expect(403)
+                request(HttpMethod.Post, roster, organiser, grant).expect(403)
+                request(HttpMethod.Post, roster, login("T002"), grant).expect(403)
+                check(
+                    request(HttpMethod.Get, "/teacher/clubs", teacher)
+                        .asArray()
+                        .single()
+                        .jsonObject
+                        .text("clubId") == "guitar"
+                )
+                request(
+                        HttpMethod.Get,
+                        "/teacher/clubs/acm/organisers/candidate?universityId=S001",
+                        teacher,
+                    )
+                    .expect(403)
+                request(HttpMethod.Post, roster, teacher, grant.with(obj("universityId" to "T001")))
+                    .errorIs(404, "NO_ELIGIBLE_ACCOUNT")
+                request(HttpMethod.Post, roster, teacher, grant.with(obj("reason" to " ")))
+                    .expect(422)
+                request(HttpMethod.Post, roster, teacher, grant).expect(200)
+                val roles = request(HttpMethod.Get, "/me", student).asObject()["roles"]!!.jsonArray
+                check(
+                    roles.map { it.jsonPrimitive.content }.toSet() == setOf("student", "organiser")
+                )
+                check(
+                    request(HttpMethod.Get, "/organiser/clubs", student)
+                        .asArray()
+                        .single()
+                        .jsonObject
+                        .text("clubId") == "guitar"
+                )
+                request(
+                        HttpMethod.Post,
+                        "/organiser/activities",
+                        student,
+                        fields.with(obj("clubId" to "acm")),
+                    )
+                    .expect(403)
+                submit(student)
+                check(
+                    request(HttpMethod.Get, "/my/registrations", student)
+                        .asArray()
+                        .single()
+                        .jsonObject
+                        .text("registrationId") == booking.text("registrationId")
+                )
+                request(HttpMethod.Get, "/teacher/reviews", student).expect(403)
+
+                val lastPlace = coroutineScope {
+                    listOf("S002", "S003")
+                        .map { id ->
+                            async {
+                                request(
+                                    HttpMethod.Post,
+                                    roster,
+                                    teacher,
+                                    grant.with(obj("universityId" to id)),
+                                )
+                            }
+                        }
+                        .awaitAll()
+                }
+                check(lastPlace.map { it.status.value }.sorted() == listOf(200, 409))
+                request(HttpMethod.Post, roster, teacher, grant).expect(200)
+                check(request(HttpMethod.Get, roster, teacher).asArray().size == 3)
+                val log =
+                    db.transaction { rows("SELECT * FROM organiser_grants WHERE clubId='guitar'") }
+                check(
+                    log.size == 2 &&
+                        log.all {
+                            it.text("grantedBy") == "t1" &&
+                                it.text("reason") == "Elected by club members"
+                        }
+                )
+            }
+        }
+
+        "Student signup starts a session, keeps IDs unique and grants only student access" {
+            scenario {
+                val credentials = obj("universityId" to "st2026", "password" to "example pass")
+                val signup =
+                    credentials.with(
+                        obj(
+                            "displayName" to " Lin Chen ",
+                            "role" to "teacher",
+                            "clubId" to "guitar",
+                        )
+                    )
+                request(HttpMethod.Post, "/signup", body = signup.with(obj("password" to "short")))
+                    .errorIs(422, "VALIDATION_FAILED")
+                request(
+                        HttpMethod.Post,
+                        "/signup",
+                        body = signup.with(obj("universityId" to "o001")),
+                    )
+                    .errorIs(409, "ID_IN_USE")
+                val previous = login("S001")
+                val attempts = coroutineScope {
+                    (1..2)
+                        .map { async { request(HttpMethod.Post, "/signup", previous, signup) } }
+                        .awaitAll()
+                }
+                check(attempts.map { it.status.value }.sorted() == listOf(201, 409))
+                val session =
+                    attempts
+                        .single { it.status.value == 201 }
+                        .headers[HttpHeaders.SetCookie]!!
+                        .substringBefore(';')
+                val profile = request(HttpMethod.Get, "/me", session).asObject()
+                check(
+                    profile.text("role") == "student" && profile.text("displayName") == "Lin Chen"
+                )
+                request(HttpMethod.Get, "/me", previous).expect(401)
+                request(HttpMethod.Get, "/teacher/reviews", session).expect(403)
+                request(HttpMethod.Get, "/organiser/clubs", session).expect(403)
+                request(HttpMethod.Get, "/my/registrations", session).expect(200)
+                request(HttpMethod.Post, "/logout", session).expect(200)
+                request(HttpMethod.Get, "/me", session).expect(401)
+                request(
+                        HttpMethod.Post,
+                        "/login",
+                        body = credentials.with(obj("password" to "wrong")),
+                    )
+                    .errorIs(401, "INVALID_LOGIN")
+                val returning =
+                    request(
+                            HttpMethod.Post,
+                            "/login",
+                            body = credentials.with(obj("universityId" to "ST2026")),
+                        )
+                        .asObject()
+                check(returning == profile)
+            }
+        }
+
         "Unpublished versions stay private, decisions are scoped and linked to their snapshots" {
             scenario {
                 val org = login("O001")

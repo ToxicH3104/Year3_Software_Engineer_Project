@@ -17,6 +17,8 @@ The default database is `campus.db` in the current working directory. Override i
 
 ## Local demonstration accounts
 
+Students can create a local account through the sign-in page using their name, university ID and a password of at least eight characters. Signup starts a session immediately. University IDs are unique and case-insensitive for ASCII letters. New accounts start with the student role and no club memberships. The system provisions teacher accounts and assigns teachers to clubs. This coursework setup accepts a self-reported university ID.
+
 | Role | University ID | Assigned club |
 |---|---|---|
 | Student | S001 | Guitar |
@@ -28,6 +30,18 @@ The default database is `campus.db` in the current working directory. Override i
 | Teacher | T002 | ACM |
 
 Each seeded demo account uses the password `demo-` followed by its university ID (e.g. `demo-O001`). These published credentials simulate campus login for the coursework demonstration. Roles and club assignments come from SQLite. Separate browser profiles can sign in as different users at the same time.
+
+## Grant organiser access
+
+A club's teacher can grant access from **Review queue → Club organisers**. The teacher looks up an existing account by exact university ID, checks the name and records a reason. Students keep their bookings and student access. A student with an open browser session can refresh to see **My activities**. Each club has up to three organisers, including system-provisioned organisers.
+
+For a system grant, run the following from the backend directory with the same database path as the server. Substitute the club ID, the existing university ID and the reason.
+
+```sh
+CAMPUS_DB=campus-preview.db ./kotlin run -- grant-organiser guitar S003 "Elected club secretary"
+```
+
+Both paths record the club, target account, timestamp, reason and granting teacher (null for the system) in `organiser_grants`. Repeating a grant returns the existing assignment.
 
 ## Code layout
 

@@ -10,6 +10,8 @@ BEGIN SELECT RAISE(ABORT,'At most three organisers per club'); END;
 
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, userId TEXT NOT NULL REFERENCES users, expiresAt TEXT NOT NULL);
 
+CREATE TABLE IF NOT EXISTS organiser_grants(clubId TEXT NOT NULL REFERENCES clubs, userId TEXT NOT NULL REFERENCES users, grantedBy TEXT REFERENCES users, grantedAt TEXT NOT NULL, reason TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS activities(activityId TEXT PRIMARY KEY, clubId TEXT NOT NULL REFERENCES clubs, status TEXT NOT NULL CHECK(status IN ('draft','awaiting_review','returned','published','cancelled')), fields TEXT NOT NULL, qrToken TEXT UNIQUE, cancelReason TEXT);
 
 CREATE TABLE IF NOT EXISTS reviews(reviewId TEXT PRIMARY KEY, activityId TEXT NOT NULL REFERENCES activities, version INTEGER NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', proposed TEXT NOT NULL, baseline TEXT, previousReason TEXT, previousDecidedAt TEXT, submittedBy TEXT NOT NULL REFERENCES users, submittedAt TEXT NOT NULL, reviewerId TEXT REFERENCES users, decidedAt TEXT, reason TEXT, UNIQUE(activityId, version));

@@ -2,6 +2,7 @@ package campus
 
 import campus.activities.processDue
 import campus.auth.authRoutes
+import campus.auth.grantOrganiser
 import campus.db.Database
 import campus.http.*
 import campus.organiser.organiserRoutes
@@ -22,10 +23,33 @@ import java.net.URI
 import java.time.ZoneId
 import kotlinx.coroutines.*
 
-fun main() {
+fun main(args: Array<String>) {
+    val file = System.getenv("CAMPUS_DB") ?: "campus.db"
+    if (args.isNotEmpty()) {
+        require(args.size == 4 && args[0] == "grant-organiser") {
+            "Usage: grant-organiser <club ID> <university ID> <reason>"
+        }
+        try {
+            val user =
+                Database(file).transaction {
+                    grantOrganiser(args[1], args[2], args[3], grantedBy = null)
+                }
+            println(
+                "Organiser access for " +
+                    args[1] +
+                    " is active for " +
+                    user.text("universityId") +
+                    "."
+            )
+        } catch (e: ApiError) {
+            System.err.println(e.message)
+            kotlin.system.exitProcess(1)
+        }
+        return
+    }
     val port = System.getenv("PORT")?.toInt() ?: 8080
     val url = System.getenv("PUBLIC_BASE_URL") ?: "http://localhost:5173"
-    val db = Database(System.getenv("CAMPUS_DB") ?: "campus.db")
+    val db = Database(file)
     embeddedServer(Netty, host = System.getenv("HOST") ?: "127.0.0.1", port = port) {
             campusApi(db, url)
         }
