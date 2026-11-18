@@ -6,7 +6,10 @@ export interface User {
   universityId: string;
   displayName: string;
   role: Role;
+  roles: Role[];
 }
+export const hasRole = (user: User, role: Role) =>
+  user.role === role || user.roles?.includes(role);
 export interface Fields {
   title: string;
   description: string;

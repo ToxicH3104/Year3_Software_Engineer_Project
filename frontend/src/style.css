@@ -697,6 +697,13 @@ small,
 .login-shell .panel {
   padding: 26px;
 }
+.account-switch {
+  margin-top: 16px;
+}
+.account-switch a {
+  color: var(--pine);
+  text-decoration: underline;
+}
 .demo {
   border-top: 1px solid var(--line);
   margin-top: 22px;

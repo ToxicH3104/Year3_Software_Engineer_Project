@@ -36,6 +36,11 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
     <>
       <Heading
         title={history ? "Review history" : "Review queue"}
+        action={
+          <Link className="btn" to="/teacher/organisers">
+            Club organisers
+          </Link>
+        }
         sub={
           history
             ? "Decisions you have made for your clubs."

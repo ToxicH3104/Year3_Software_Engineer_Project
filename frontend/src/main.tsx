@@ -19,7 +19,7 @@ import {
   Music2,
   UserRound,
 } from "lucide-react";
-import { api, ApiError, type Role, type User } from "./api";
+import { api, ApiError, hasRole, type Role, type User } from "./api";
 import {
   Back,
   Field,
@@ -38,6 +38,7 @@ import {
   OrganiserHome,
 } from "./pages/Organiser";
 import { TeacherHome, TeacherReview } from "./pages/Teacher";
+import TeacherOrganisers from "./pages/TeacherOrganisers";
 import "./style.css";
 
 function Brand() {
@@ -50,18 +51,20 @@ function Brand() {
     </Link>
   );
 }
-function Login() {
+function AccountForm({ signup = false }: { signup?: boolean }) {
   const [id, setId] = useState(""),
     [password, setPw] = useState(""),
+    [displayName, setDisplayName] = useState(""),
     [params] = useSearchParams(),
     act = useAction(),
     { setUser } = useSession(),
     nav = useNavigate();
   const enter = (universityId: string, pw: string) =>
     act.run(async () => {
-      const u = await api<User>("/login", "POST", {
+      const u = await api<User>(signup ? "/signup" : "/login", "POST", {
         universityId,
         password: pw,
+        ...(signup && { displayName: displayName.trim() }),
       });
       setUser(u);
       const next = params.get("next");
@@ -75,7 +78,7 @@ function Login() {
   return (
     <div className="login-shell">
       <Back />
-      <Heading title="Sign in" sub="Access your campus club account." />
+      <Heading title={signup ? "Create a student account" : "Sign in"} />
       <div className="panel">
         <form
           className="form"
@@ -85,53 +88,104 @@ function Login() {
           }}
         >
           {act.feedback}
-          <Field label="University ID">
+          {signup && (
+            <Field label="Full name" error={act.fields.displayName}>
+              {(k) => (
+                <input
+                  required
+                  autoComplete="name"
+                  id={k}
+                  maxLength={100}
+                  aria-invalid={!!act.fields.displayName}
+                  aria-describedby={
+                    act.fields.displayName ? k + "-error" : undefined
+                  }
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              )}
+            </Field>
+          )}
+          <Field label="University ID" error={act.fields.universityId}>
             {(k) => (
               <input
                 required
                 autoComplete="username"
                 id={k}
+                maxLength={signup ? 64 : undefined}
+                aria-invalid={!!act.fields.universityId}
+                aria-describedby={
+                  act.fields.universityId ? k + "-error" : undefined
+                }
                 value={id}
                 onChange={(e) => setId(e.target.value)}
               />
             )}
           </Field>
-          <Field label="Password">
+          <Field label="Password" error={act.fields.password}>
             {(k) => (
-              <input
-                required
-                autoComplete="current-password"
-                type="password"
-                id={k}
-                value={password}
-                onChange={(e) => setPw(e.target.value)}
-              />
+              <>
+                <input
+                  required
+                  autoComplete={signup ? "new-password" : "current-password"}
+                  type="password"
+                  id={k}
+                  minLength={signup ? 8 : undefined}
+                  maxLength={256}
+                  aria-invalid={!!act.fields.password}
+                  aria-describedby={
+                    act.fields.password
+                      ? k + "-error"
+                      : signup
+                        ? k + "-hint"
+                        : undefined
+                  }
+                  value={password}
+                  onChange={(e) => setPw(e.target.value)}
+                />
+                {signup && (
+                  <small id={k + "-hint"}>Use at least 8 characters.</small>
+                )}
+              </>
             )}
           </Field>
           <button className="btn primary" disabled={act.busy}>
-            Sign in <ArrowRight size={16} />
+            {signup ? "Create account" : "Sign in"} <ArrowRight size={16} />
           </button>
         </form>
-        <div className="demo">
-          <h3>Try a demo account</h3>
-          {(
-            [
-              ["S001", "Student", UserRound],
-              ["O001", "Organiser", Music2],
-              ["T001", "Teacher", GraduationCap],
-            ] as const
-          ).map(([number, label, Icon]) => (
-            <button
-              key={number}
-              disabled={act.busy}
-              onClick={() => enter(number, "demo-" + number)}
-            >
-              <Icon size={17} />
-              {label}
-              <ArrowRight size={15} />
-            </button>
-          ))}
-        </div>
+        <p className="account-switch">
+          {signup ? "Already have an account? " : "New student? "}
+          <Link
+            to={{
+              pathname: signup ? "/login" : "/signup",
+              search: params.toString(),
+            }}
+          >
+            {signup ? "Sign in" : "Sign up"}
+          </Link>
+        </p>
+        {!signup && (
+          <div className="demo">
+            <h3>Try a demo account</h3>
+            {(
+              [
+                ["S001", "Student", UserRound],
+                ["O001", "Organiser", Music2],
+                ["T001", "Teacher", GraduationCap],
+              ] as const
+            ).map(([number, label, Icon]) => (
+              <button
+                key={number}
+                disabled={act.busy}
+                onClick={() => enter(number, "demo-" + number)}
+              >
+                <Icon size={17} />
+                {label}
+                <ArrowRight size={15} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -146,7 +200,7 @@ function Gate({ role, children }: { role: Role; children: ReactNode }) {
         to={"/login?next=" + encodeURIComponent(loc.pathname + loc.search)}
       />
     );
-  return user.role === role ? (
+  return hasRole(user, role) ? (
     children
   ) : (
     <>
@@ -209,7 +263,7 @@ function App() {
             {(!user || user.role === "student") && (
               <NavLink to="/my/registrations">My registrations</NavLink>
             )}
-            {user?.role === "organiser" && (
+            {user && hasRole(user, "organiser") && (
               <NavLink to="/organiser/activities">My activities</NavLink>
             )}
             {user?.role === "teacher" && (
@@ -254,7 +308,11 @@ function App() {
             <Route path="/" element={<Navigate to="/activities" replace />} />
             <Route path="/activities" element={<Board />} />
             <Route path="/activities/:id" element={<ActivityDetail />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<AccountForm key="login" />} />
+            <Route
+              path="/signup"
+              element={<AccountForm key="signup" signup />}
+            />
             <Route
               path="/register/:token"
               element={
@@ -308,6 +366,14 @@ function App() {
               element={
                 <Gate role="organiser">
                   <ActivityForm />
+                </Gate>
+              }
+            />
+            <Route
+              path="/teacher/organisers"
+              element={
+                <Gate role="teacher">
+                  <TeacherOrganisers />
                 </Gate>
               }
             />
