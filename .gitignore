@@ -1,0 +1,45 @@
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# ---- AI 助手本地配置（队友各自配置，不入库）----
+.claude/
+
+# ---- 环境变量与密钥 ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---- Kotlin / Amper 构建产物 ----
+build/
+out/
+.amper/
+.kotlin/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# ---- SQLite 数据库（本地开发数据，不入库）----
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ---- 前端 / Node ----
+node_modules/
+frontend/dist/
+dist/
+.vite/
+coverage/
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
