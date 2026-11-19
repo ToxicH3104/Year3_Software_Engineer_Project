@@ -67,7 +67,6 @@ private fun Tx.reviewView(row: JsonObject): JsonObject {
 }
 
 fun Tx.reviewList(actor: Actor, history: Boolean, sort: String?): JsonArray {
-    actor.requireRole("teacher")
     val condition =
         if (history) "r.reviewerId=? AND r.status IN ('approved','returned')"
         else

@@ -63,8 +63,14 @@ fun Tx.editDraft(actor: Actor, id: String, body: JsonObject): JsonObject {
     return manageView(activity(id))
 }
 
-fun Tx.submitReview(actor: Actor, a: Activity, proposed: JsonObject, edit: Boolean) {
-    requireClub(actor, a.club, "organiser")
+fun Tx.submitActivity(actor: Actor, id: String, edits: JsonObject? = null): JsonObject {
+    val a = managed(actor, id)
+    val proposed = if (edits == null) a.fields else a.fields.with(formFields(edits))
+    submitReview(actor, a, proposed, edit = edits != null)
+    return manageView(activity(id))
+}
+
+private fun Tx.submitReview(actor: Actor, a: Activity, proposed: JsonObject, edit: Boolean) {
     if (edit && a.status != "published" || !edit && a.status !in setOf("draft", "returned"))
         conflict("NOT_EDITABLE", "This activity cannot be submitted in its current state.")
     val last = one("SELECT * FROM reviews WHERE activityId=? ORDER BY version DESC LIMIT 1", a.id)

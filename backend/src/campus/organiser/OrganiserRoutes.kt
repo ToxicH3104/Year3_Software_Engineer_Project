@@ -1,6 +1,5 @@
 package campus.organiser
 
-import campus.activities.*
 import campus.auth.actor
 import campus.auth.requireRole
 import campus.http.*
@@ -43,19 +42,11 @@ fun Route.organiserRoutes(api: Api) =
                     api.role(call, "organiser") { editDraft(it, call.param("id"), body) }
                 }
                 post("submit") {
-                    api.role(call, "organiser") { actor ->
-                        val a = managed(actor, call.param("id"))
-                        submitReview(actor, a, a.fields, false)
-                        manageView(activity(a.id))
-                    }
+                    api.role(call, "organiser") { submitActivity(it, call.param("id")) }
                 }
                 post("edits") {
                     val body = call.payload()
-                    api.role(call, "organiser") { actor ->
-                        val a = managed(actor, call.param("id"))
-                        submitReview(actor, a, a.fields.with(formFields(body)), true)
-                        manageView(activity(a.id))
-                    }
+                    api.role(call, "organiser") { submitActivity(it, call.param("id"), body) }
                 }
                 get("participants") {
                     api.role(call, "organiser") { participants(it, call.param("id")) }

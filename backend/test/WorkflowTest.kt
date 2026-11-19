@@ -287,6 +287,7 @@ class WorkflowTest :
                 val student = login("S001")
                 val otherTeacher = login("T002")
                 val otherOrg = login("O002")
+                request(HttpMethod.Get, "/teacher/history", student).errorIs(403, "FORBIDDEN")
                 request(HttpMethod.Post, "/organiser/activities", student, fields)
                     .errorIs(403, "FORBIDDEN")
                 request(
@@ -309,6 +310,8 @@ class WorkflowTest :
                 request(HttpMethod.Get, "/organiser/activities/$id", otherOrg)
                     .errorIs(403, "FORBIDDEN")
                 request(HttpMethod.Put, "/organiser/activities/$id", org, fields).expect(200)
+                request(HttpMethod.Post, "/organiser/activities/$id/submit", otherOrg)
+                    .errorIs(403, "FORBIDDEN")
                 request(HttpMethod.Post, "/organiser/activities/$id/submit", org).expect(200)
                 request(HttpMethod.Get, "/activities/$id").expect(404)
                 check(request(HttpMethod.Get, "/teacher/reviews", otherTeacher).asArray().isEmpty())
@@ -334,6 +337,13 @@ class WorkflowTest :
                 decision(teacher, second.text("reviewId")!!).errorIs(409, "ALREADY_DECIDED")
                 val detail = request(HttpMethod.Get, "/activities/$id").asObject()
                 check(detail.text("location") == "Annex")
+                request(
+                        HttpMethod.Post,
+                        "/organiser/activities/$id/edits",
+                        otherOrg,
+                        obj("location" to "Hall B"),
+                    )
+                    .errorIs(403, "FORBIDDEN")
                 request(
                         HttpMethod.Post,
                         "/organiser/activities/$id/edits",
