@@ -132,6 +132,44 @@ private fun scenario(block: suspend Fixture.() -> Unit) = testApplication {
 
 class WorkflowTest :
     FreeSpec({
+        "Teachers create clubs, appoint organisers and review the new club's activities" {
+            scenario {
+                val path = "/teacher/clubs"
+                val teacher = login("T001")
+                val otherTeacher = login("T002")
+                val student = login("S003")
+                val name = obj("clubName" to " 摄影社 ")
+                request(HttpMethod.Post, path, null, name).expect(401)
+                request(HttpMethod.Post, path, student, name).expect(403)
+                request(HttpMethod.Post, path, login("O001"), name).expect(403)
+                request(HttpMethod.Post, path, teacher, obj("clubName" to " ")).expect(422)
+                request(HttpMethod.Post, path, teacher, obj("clubName" to " acM clUB "))
+                    .errorIs(409, "CLUB_NAME_IN_USE")
+                val attempts = coroutineScope {
+                    (1..2)
+                        .map { async { request(HttpMethod.Post, path, teacher, name) } }
+                        .awaitAll()
+                }
+                check(attempts.map { it.status.value }.sorted() == listOf(200, 409))
+                val club = attempts.single { it.status.value == 200 }.asObject()
+                val id = club.text("clubId")!!
+                check(club.text("clubName") == "摄影社")
+                check(club in request(HttpMethod.Get, path, teacher).asArray())
+                check(club !in request(HttpMethod.Get, path, otherTeacher).asArray())
+                val roster = "$path/$id/organisers"
+                check(request(HttpMethod.Get, roster, teacher).asArray().isEmpty())
+                val grant = obj("universityId" to "S003", "reason" to "Founding organiser")
+                request(HttpMethod.Post, roster, otherTeacher, grant).expect(403)
+                request(HttpMethod.Post, roster, teacher, grant).expect(200)
+                val (activity, qr) = published(student, teacher, obj("clubId" to id))
+                check(
+                    request(HttpMethod.Get, "/activities/$activity").asObject().text("clubName") ==
+                        "摄影社"
+                )
+                request(HttpMethod.Post, "/register/$qr", login("S001")).expect(200)
+            }
+        }
+
         "Club teachers grant organiser access without replacing a student's account" {
             scenario {
                 val teacher = login("T001")

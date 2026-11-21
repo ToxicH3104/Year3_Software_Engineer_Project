@@ -3,20 +3,13 @@ package campus.teacher
 import campus.auth.*
 import campus.http.*
 import io.ktor.server.routing.*
-import kotlinx.serialization.json.JsonArray
 
 fun Route.teacherRoutes(api: Api) =
     route("/teacher") {
-        get("clubs") {
-            api.role(call, "teacher") { actor ->
-                JsonArray(
-                    rows(
-                        """SELECT clubId, clubName FROM clubs JOIN club_roles USING(clubId)
-                    WHERE userId=? AND relation='teacher' ORDER BY clubName""",
-                        actor.id,
-                    )
-                )
-            }
+        get("clubs") { api.role(call, "teacher") { teacherClubs(it) } }
+        post("clubs") {
+            val input = call.payload()
+            api.role(call, "teacher") { createClub(it, input.text("clubName")) }
         }
         route("clubs/{id}/organisers") {
             get {
