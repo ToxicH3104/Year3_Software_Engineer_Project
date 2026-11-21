@@ -38,7 +38,7 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
         title={history ? "Review history" : "Review queue"}
         action={
           <Link className="btn" to="/teacher/organisers">
-            Club organisers
+            Manage clubs
           </Link>
         }
         sub={

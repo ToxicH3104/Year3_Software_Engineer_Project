@@ -38,7 +38,7 @@ import {
   OrganiserHome,
 } from "./pages/Organiser";
 import { TeacherHome, TeacherReview } from "./pages/Teacher";
-import TeacherOrganisers from "./pages/TeacherOrganisers";
+import TeacherOrganisers, { CreateClub } from "./pages/TeacherOrganisers";
 import "./style.css";
 
 function Brand() {
@@ -366,6 +366,14 @@ function App() {
               element={
                 <Gate role="organiser">
                   <ActivityForm />
+                </Gate>
+              }
+            />
+            <Route
+              path="/teacher/clubs/new"
+              element={
+                <Gate role="teacher">
+                  <CreateClub />
                 </Gate>
               }
             />

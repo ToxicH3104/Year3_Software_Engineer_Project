@@ -245,6 +245,8 @@ export function Art({
           : "session"
         : a.clubId === "acm"
           ? "coding"
-          : "guitar";
+          : a.clubId === "guitar"
+            ? "guitar"
+            : "workshop";
   return <img className="art" src={"/img/" + file + ".jpg"} alt="" />;
 }

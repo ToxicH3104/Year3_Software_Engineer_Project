@@ -96,7 +96,6 @@ export async function api<T>(
   const res = await fetch("/api" + path, {
     method,
     signal,
-    credentials: "same-origin",
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

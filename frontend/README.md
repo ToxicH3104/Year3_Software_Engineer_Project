@@ -22,7 +22,9 @@ npm run dev
 
 Open http://localhost:5173. The optional seed command creates five published examples and one pending review using the running API. It checks existing titles before adding fixtures. Use the dedicated preview database above for this demonstration. The default API target is http://127.0.0.1:8080; set CAMPUS_API_URL to change it.
 
-On the sign-in screen, choose **Sign up** to create a student account. Enter your name, university ID and a password of at least eight characters. Signup signs you in and brings you back to the page you were trying to open. The system provisions teacher accounts. From **Review queue → Club organisers**, a club's teacher can look up a student by university ID and grant organiser access for that club. The system can also grant access. Refresh the student's page to see **My activities** alongside **My registrations**.
+On the sign-in screen, choose **Sign up** to create a student account. Enter your name, university ID and a password of at least eight characters. Signup signs you in and brings you back to the page you were trying to open. The system provisions teacher accounts. From **Review queue → Manage clubs**, a club's teacher can look up a student by university ID and grant organiser access for that club. The system can also grant access. Refresh the student's page to see **My activities** alongside **My registrations**.
+
+Teachers can choose **Manage clubs → New club**, enter a name and create a club. The creator becomes its supervising teacher and can immediately assign an organiser.
 
 The sign-in screen also includes local demo accounts for a student (S001), a Guitar Club organiser (O001) and their teacher (T001). To try the demo from another club, enter its account manually. The [backend guide](../backend/README.md) lists all demo accounts.
 

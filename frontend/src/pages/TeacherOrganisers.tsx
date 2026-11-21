@@ -1,8 +1,55 @@
 import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, useData, type Club, type User } from "../api";
 import { Back, Empty, Field, Heading, Load, useAction } from "../shared";
 
 type Account = Pick<User, "universityId" | "displayName">;
+
+export function CreateClub() {
+  const [name, setName] = useState("");
+  const action = useAction();
+  const navigate = useNavigate();
+  return (
+    <div className="narrow">
+      <Back to="/teacher/organisers">Manage clubs</Back>
+      <Heading
+        title="Create a club"
+        sub="You will be the teacher responsible for this club."
+      />
+      <form
+        className="panel form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          action.run(async () => {
+            const club = await api<Club>("/teacher/clubs", "POST", {
+              clubName: name.trim(),
+            });
+            navigate(
+              "/teacher/organisers?club=" + encodeURIComponent(club.clubId),
+              { replace: true },
+            );
+          });
+        }}
+      >
+        {action.feedback}
+        <Field label="Club name">
+          {(id) => (
+            <input
+              id={id}
+              required
+              maxLength={100}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
+        </Field>
+        <button className="btn primary" disabled={action.busy || !name.trim()}>
+          Create club
+        </button>
+      </form>
+    </div>
+  );
+}
 
 function ClubAssignments({ club }: { club: Club }) {
   const base =
@@ -142,14 +189,19 @@ function ClubAssignments({ club }: { club: Club }) {
 
 export default function TeacherOrganisers() {
   const { data: clubs, error } = useData<Club[]>("/teacher/clubs");
-  const [selected, setSelected] = useState("");
-  const club = clubs?.find((c) => c.clubId === selected) ?? clubs?.[0];
+  const [params, setParams] = useSearchParams();
+  const club =
+    clubs?.find((c) => c.clubId === params.get("club")) ?? clubs?.[0];
   return (
     <>
       <Back to="/teacher/reviews">Review queue</Back>
       <Heading
-        title="Club organisers"
-        sub="Assign organiser access to an existing campus account."
+        title="Manage clubs"
+        action={
+          <Link className="btn primary" to="/teacher/clubs/new">
+            New club
+          </Link>
+        }
       />
       {!clubs ? (
         <Load error={error} />
@@ -163,7 +215,9 @@ export default function TeacherOrganisers() {
                 <select
                   id={k}
                   value={club.clubId}
-                  onChange={(e) => setSelected(e.target.value)}
+                  onChange={(e) =>
+                    setParams({ club: e.target.value }, { replace: true })
+                  }
                 >
                   {clubs.map((c) => (
                     <option key={c.clubId} value={c.clubId}>
