@@ -44,14 +44,22 @@ fun Tx.notifyApprovedEdit(a: Activity, newStart: Instant, message: String, kind:
     }
 }
 
-// Called by a periodic worker and before API operations so deadlines also hold after downtime.
-fun Tx.processDue() {
+fun Tx.processDueBookings() {
     for (r in
         rows(
-            "SELECT registrationId FROM registrations WHERE status='reserved' AND reservationDeadline<=?",
+            "SELECT registrationId, studentId, activityId FROM registrations WHERE status='reserved' AND reservationDeadline<=?",
             time,
         )) {
         releaseBooking(r.text("registrationId")!!)
+        val a = activity(r.text("activityId")!!)
+        notice(
+            r.text("studentId")!!,
+            a.id,
+            "place_released",
+            "Your reserved place for " +
+                a.fields.text("title") +
+                " was released because the confirmation deadline passed.",
+        )
     }
     for (r in
         rows("SELECT * FROM registrations WHERE status='confirmed' AND reminderAt<=?", time)) {

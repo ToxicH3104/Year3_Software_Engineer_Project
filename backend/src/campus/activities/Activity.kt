@@ -98,12 +98,17 @@ fun Tx.counts(id: String): Pair<Int, Int> {
 fun Tx.summary(a: Activity): JsonObject {
     val (confirmed, reserved) = counts(a.id)
     val remaining = (a.fields.number("capacity") ?: 0) - confirmed - reserved
+    val startsAt = instant(a.fields.text("startsAt"))
+    val deadline = instant(a.fields.text("registrationDeadline"))
+    val closesAt =
+        if (startsAt != null && deadline != null)
+            minOf(deadline, startsAt.minus(Duration.ofHours(12)))
+        else null
     val state =
         when {
             a.status == "cancelled" -> "cancelled"
             a.status != "published" -> "closed"
-            now >= instant(a.fields.text("registrationDeadline"))!! ||
-                now >= a.start().minus(Duration.ofHours(12)) -> "closed"
+            closesAt == null || now >= closesAt -> "closed"
             remaining <= 0 -> "full"
             else -> "open"
         }
@@ -119,6 +124,7 @@ fun Tx.summary(a: Activity): JsonObject {
             "registeredCount" to confirmed + reserved,
             "remaining" to remaining.coerceAtLeast(0),
             "registrationState" to state,
+            "registrationClosesAt" to closesAt?.let(::timestamp),
         )
     )
 }

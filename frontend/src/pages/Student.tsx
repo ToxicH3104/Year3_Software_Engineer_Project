@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, Bell, CalendarCheck } from "lucide-react";
-import { api, useData, type Activity, type Booking, type Notice } from "../api";
+import {
+  api,
+  hasRole,
+  useData,
+  type Activity,
+  type Booking,
+  type Notice,
+} from "../api";
+import { CalendarField } from "../CalendarField";
 import {
   Art,
   Back,
@@ -64,7 +72,7 @@ export function ActivityDetail({ register = false }: { register?: boolean }) {
             </Link>
           ) : a.registrationState !== "open" ? (
             <p className="notice">Registration is {a.registrationState}.</p>
-          ) : user && user.role !== "student" ? (
+          ) : user && !hasRole(user, "student") ? (
             <p className="muted">
               Registration is available to student accounts.
             </p>
@@ -112,7 +120,7 @@ export function Registrations() {
     <>
       <Heading
         title="My registrations"
-        sub="Your bookings and updates from club organisers."
+        sub="Your bookings, reminders and club notices."
       />
       {!data ? (
         <Load error={error} />
@@ -175,9 +183,9 @@ export function BookingDetail() {
   if (!b) return <Load error={error} />;
   const a = b.activity,
     base = "/my/registrations/" + id;
-  const change = (path: string, method = "POST", body?: unknown) =>
+  const change = (path: string, method = "POST", body?: () => unknown) =>
     act.run(async () => {
-      await api(base + path, method, body);
+      await api(base + path, method, body?.());
       setRemind(null);
       setCancel(false);
       refresh((x) => x + 1);
@@ -268,13 +276,18 @@ export function BookingDetail() {
                 ? "Scheduled for " + moment(b.reminderAt)
                 : "Choose when to receive an activity notice."}
             </p>
-            <Field label="Reminder time (Shanghai)">
+            <Field
+              label="Reminder time (Shanghai)"
+              error={act.fields.reminderAt}
+            >
               {(key) => (
-                <input
-                  type="datetime-local"
+                <CalendarField
                   id={key}
+                  label="Reminder time (Shanghai)"
+                  withTime
+                  invalid={!!act.fields.reminderAt}
                   value={remind ?? localInput(b.reminderAt)}
-                  onChange={(e) => setRemind(e.target.value)}
+                  onChange={setRemind}
                 />
               )}
             </Field>
@@ -283,9 +296,12 @@ export function BookingDetail() {
                 className="btn primary"
                 disabled={act.busy || !(remind ?? b.reminderAt)}
                 onClick={() =>
-                  change("/reminder", "PUT", {
-                    reminderAt: fromInput(remind ?? localInput(b.reminderAt)),
-                  })
+                  change("/reminder", "PUT", () => ({
+                    reminderAt: fromInput(
+                      remind ?? localInput(b.reminderAt),
+                      "reminderAt",
+                    ),
+                  }))
                 }
               >
                 Save reminder
@@ -295,7 +311,7 @@ export function BookingDetail() {
                   className="btn"
                   disabled={act.busy}
                   onClick={() =>
-                    change("/reminder", "PUT", { reminderAt: null })
+                    change("/reminder", "PUT", () => ({ reminderAt: null }))
                   }
                 >
                   Turn off

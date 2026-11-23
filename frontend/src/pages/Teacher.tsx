@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { api, useData, type Review, type Fields } from "../api";
+import { api, ApiError, useData, type Review, type Fields } from "../api";
 import {
   Back,
   Badge,
@@ -28,10 +28,11 @@ function format(k: keyof Fields, v: Fields[keyof Fields]) {
     : String(v ?? "—");
 }
 export function TeacherHome({ history = false }: { history?: boolean }) {
-  const [sort, setSort] = useState("submitted"),
-    { data, error } = useData<Review[]>(
-      history ? "/teacher/history" : "/teacher/reviews?sort=" + sort,
-    );
+  const { data, error } = useData<Review[]>(
+    history ? "/teacher/history" : "/teacher/reviews",
+    0,
+    15_000,
+  );
   return (
     <>
       <Heading
@@ -43,8 +44,8 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
         }
         sub={
           history
-            ? "Decisions you have made for your clubs."
-            : "Activity submissions from the clubs assigned to you."
+            ? "Teacher decisions and automatic returns across all clubs."
+            : "All clubs share this queue. Reviews due within 48 hours come first."
         }
       />
       <div className="between tools">
@@ -56,16 +57,6 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
             History
           </Link>
         </div>
-        {!history && (
-          <select
-            aria-label="Sort reviews"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            <option value="submitted">Oldest submission</option>
-            <option value="deadline">Nearest deadline</option>
-          </select>
-        )}
       </div>
       {!data ? (
         <Load error={error} />
@@ -93,11 +84,24 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
                 </small>
                 <h3>{r.title}</h3>
                 <p>
-                  Submitted {moment(r.submittedAt)} · Deadline{" "}
-                  {moment(r.proposed.registrationDeadline)}
+                  {history && r.decision
+                    ? (r.status === "returned"
+                        ? "Returned by: "
+                        : "Approved by: ") +
+                      r.decision.reviewerName +
+                      " · " +
+                      moment(r.decision.decidedAt)
+                    : "Review by " +
+                      moment(r.reviewDeadline) +
+                      " (Shanghai) · Submitted " +
+                      moment(r.submittedAt)}
                 </p>
               </div>
-              <Badge value={r.status} />
+              {r.isUrgent ? (
+                <Badge value="urgent" />
+              ) : (
+                <Badge value={r.status} />
+              )}
               <ArrowRight size={16} />
             </Link>
           ))}
@@ -112,11 +116,16 @@ export function TeacherReview() {
     [reason, setReason] = useState(""),
     act = useAction(),
     base = "/teacher/reviews/" + id,
-    { data: r, error } = useData<Review>(base, rev);
+    { data: r, error } = useData<Review>(base, rev, 15_000);
   if (!r) return <Load error={error} />;
   function decide(decision: string) {
     act.run(async () => {
-      await api(base + "/decision", "POST", { decision, reason });
+      try {
+        await api(base + "/decision", "POST", { decision, reason });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) setRev((x) => x + 1);
+        throw e;
+      }
       setRev((x) => x + 1);
     }, "Decision recorded.");
   }
@@ -166,6 +175,7 @@ export function TeacherReview() {
         </article>
         <aside className="panel sticky">
           <h2>{r.status === "pending" ? "Review decision" : "Decision"}</h2>
+          <p>Review by {moment(r.reviewDeadline)} (Shanghai)</p>
           {r.status === "pending" ? (
             <>
               <Field label="Feedback (required to return)">
@@ -177,11 +187,6 @@ export function TeacherReview() {
                   />
                 )}
               </Field>
-              {r.blockReason && (
-                <p className="notice bad">
-                  The new start is less than 24 hours away.
-                </p>
-              )}
               <div className="actions">
                 <button
                   disabled={!r.canApprove || act.busy}
@@ -202,10 +207,17 @@ export function TeacherReview() {
           ) : (
             <>
               <Badge value={r.status} />
-              <p>
-                {r.decision?.reviewerName} · {moment(r.decision?.decidedAt)}
-              </p>
-              <p>{r.decision?.reason}</p>
+              {r.decision && (
+                <>
+                  <p>
+                    {r.status === "returned"
+                      ? "Returned by: "
+                      : "Approved by: "}
+                    {r.decision.reviewerName} · {moment(r.decision.decidedAt)}
+                  </p>
+                  {r.decision.reason && <p>{r.decision.reason}</p>}
+                </>
+              )}
             </>
           )}
         </aside>

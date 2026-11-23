@@ -1,6 +1,6 @@
 # Campus Clubs frontend
 
-React, TypeScript, React Router and Vite with local images and a locally hosted DM Sans font. React calls the Ktor API through a same-origin Vite proxy. The interface and sample content are in English to match the course materials. Activity times use Asia/Shanghai.
+React, TypeScript, React Router and Vite with local images and a locally hosted DM Sans font. React calls the Ktor API through a same-origin Vite proxy. The interface and sample content are in English to match the course materials. The calendar uses English months and weekdays on desktop and mobile. Dates can also be typed as YYYY-MM-DD. Times use the 24-hour clock in Asia/Shanghai.
 
 ## Run locally
 

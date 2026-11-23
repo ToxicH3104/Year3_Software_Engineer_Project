@@ -1,6 +1,5 @@
 package campus
 
-import campus.activities.processDue
 import campus.db.Database
 import campus.http.*
 import io.kotest.core.spec.style.FreeSpec
@@ -161,7 +160,7 @@ class WorkflowTest :
                 val grant = obj("universityId" to "S003", "reason" to "Founding organiser")
                 request(HttpMethod.Post, roster, otherTeacher, grant).expect(403)
                 request(HttpMethod.Post, roster, teacher, grant).expect(200)
-                val (activity, qr) = published(student, teacher, obj("clubId" to id))
+                val (activity, qr) = published(student, otherTeacher, obj("clubId" to id))
                 check(
                     request(HttpMethod.Get, "/activities/$activity").asObject().text("clubName") ==
                         "摄影社"
@@ -249,7 +248,11 @@ class WorkflowTest :
                 request(HttpMethod.Post, roster, teacher, grant).expect(200)
                 check(request(HttpMethod.Get, roster, teacher).asArray().size == 3)
                 val log =
-                    db.transaction { rows("SELECT * FROM organiser_grants WHERE clubId='guitar'") }
+                    db.transaction {
+                        rows(
+                            "SELECT * FROM organiser_grants WHERE clubId='guitar' AND grantedBy IS NOT NULL"
+                        )
+                    }
                 check(
                     log.size == 2 &&
                         log.all {
@@ -318,7 +321,7 @@ class WorkflowTest :
             }
         }
 
-        "Unpublished versions stay private, decisions are scoped and linked to their snapshots" {
+        "Unpublished versions stay private and teachers share reviews linked to their snapshots" {
             scenario {
                 val org = login("O001")
                 val teacher = login("T001")
@@ -351,12 +354,14 @@ class WorkflowTest :
                 request(HttpMethod.Post, "/organiser/activities/$id/submit", otherOrg)
                     .errorIs(403, "FORBIDDEN")
                 request(HttpMethod.Post, "/organiser/activities/$id/submit", org).expect(200)
+                request(HttpMethod.Post, "/organiser/activities/$id/submit", org)
+                    .errorIs(409, "PENDING_REVIEW")
                 request(HttpMethod.Get, "/activities/$id").expect(404)
-                check(request(HttpMethod.Get, "/teacher/reviews", otherTeacher).asArray().isEmpty())
                 val first = pending(teacher).text("reviewId")!!
-                decision(otherTeacher, first).errorIs(403, "FORBIDDEN")
+                check(pending(otherTeacher).text("reviewId") == first)
+                request(HttpMethod.Get, "/teacher/reviews/$first", student).expect(403)
                 decision(teacher, first, "return").errorIs(422, "REASON_REQUIRED")
-                decision(teacher, first, "return", "Clarify venue").expect(200)
+                decision(otherTeacher, first, "return", "Clarify venue").expect(200)
                 request(
                         HttpMethod.Put,
                         "/organiser/activities/$id",
@@ -492,9 +497,14 @@ class WorkflowTest :
                         obj("startsAt" to "2030-05-01T18:00:00Z"),
                     )
                     .expect(200)
-                val near = pending(teacher).text("reviewId")!!
-                decision(teacher, near).errorIs(409, "TOO_CLOSE_TO_START")
-                decision(teacher, near, "return", "Too soon").expect(200)
+                check(request(HttpMethod.Get, "/teacher/reviews", teacher).asArray().isEmpty())
+                val near =
+                    request(HttpMethod.Get, "/teacher/history", teacher)
+                        .asArray()
+                        .map { it.jsonObject }
+                        .single { it.text("kind") == "edit" }
+                check(near.text("status") == "returned")
+                decision(teacher, near.text("reviewId")!!).errorIs(409, "REVIEW_EXPIRED")
                 request(
                         HttpMethod.Post,
                         "/organiser/activities/$id/edits",
@@ -519,10 +529,208 @@ class WorkflowTest :
                 check(
                     request(HttpMethod.Get, "/activities/$id").asObject().number("remaining") == 1
                 )
+                val released = request(HttpMethod.Get, "/my/notices", login("S002")).asArray()
+                check(released.count { it.jsonObject.text("type") == "place_released" } == 1)
                 request(HttpMethod.Post, "/my/registrations/$firstId/cancel", login("S001"))
                     .expect(200)
             }
         }
+        "Legacy organiser sessions, bookings and pending reviews survive a restart" {
+            scenario {
+                val org = login("O001")
+                val teacher = login("T001")
+                val (_, qr) = published(org, teacher)
+                val booking =
+                    request(HttpMethod.Post, "/register/$qr", org).asObject().text("registrationId")
+                val id =
+                    submit(
+                        org,
+                        obj(
+                            "startsAt" to "2030-05-01T13:00:00Z",
+                            "registrationDeadline" to "2030-05-01T00:30:00Z",
+                        ),
+                    )
+                val file =
+                    db.transaction {
+                        exec("UPDATE users SET role='organiser' WHERE userId='o1'")
+                        exec("DROP VIEW review_requests")
+                        one("PRAGMA database_list")!!.text("file")!!
+                    }
+                clock.at = clock.at.plus(Duration.ofHours(1))
+                Database(file, clock).transaction { processDue() }
+                check(request(HttpMethod.Get, "/me", org).asObject().text("role") == "student")
+                check(
+                    request(HttpMethod.Get, "/organiser/activities/$id", org)
+                        .asObject()
+                        .text("status") == "returned"
+                )
+                check(
+                    request(HttpMethod.Get, "/my/registrations/$booking", org)
+                        .asObject()
+                        .text("status") == "confirmed"
+                )
+                check(request(HttpMethod.Get, "/my/notices", org).asArray().size == 1)
+                check(
+                    db.transaction {
+                        one(
+                                "SELECT count(*) AS n FROM organiser_grants WHERE clubId='guitar' AND userId='o1'"
+                            )!!
+                            .number("n")
+                    } == 1
+                )
+            }
+        }
+
+        "Only the first decision on a shared submission is recorded" {
+            scenario {
+                val teachers = listOf(login("T001"), login("T002"))
+                submit(login("O001"))
+                val id = pending(teachers.first()).text("reviewId")!!
+                val results = coroutineScope {
+                    teachers.map { async { decision(it, id) } }.awaitAll()
+                }
+                check(results.map { it.status.value }.sorted() == listOf(200, 409))
+                results.single { it.status.value == 409 }.errorIs(409, "ALREADY_DECIDED")
+                check(
+                    request(HttpMethod.Get, "/teacher/history", teachers.first()).asArray().size ==
+                        1
+                )
+            }
+        }
+
+        "The shared queue orders urgent deadlines first and other requests in submission order" {
+            scenario {
+                val org = login("O001")
+                val teacher = login("T002")
+                suspend fun submitIn(hours: Long): String {
+                    val start = clock.at.plus(Duration.ofHours(hours))
+                    return submit(
+                        org,
+                        obj(
+                            "startsAt" to timestamp(start),
+                            "registrationDeadline" to timestamp(start.minusSeconds(3600)),
+                        ),
+                    )
+                }
+                val firstNormal = submitIn(120)
+                val atThreshold = submitIn(60)
+                val secondNormal = submitIn(61)
+                val earliest = submitIn(18)
+                val queue =
+                    request(HttpMethod.Get, "/teacher/reviews", teacher).asArray().map {
+                        it.jsonObject
+                    }
+                check(
+                    queue.map { it.text("activityId") } ==
+                        listOf(earliest, atThreshold, firstNormal, secondNormal)
+                )
+                check(queue.filter { it["isUrgent"] == JsonPrimitive(true) }.size == 2)
+                check(
+                    queue[1].text("reviewDeadline") ==
+                        timestamp(clock.at.plus(Duration.ofHours(48)))
+                )
+            }
+        }
+
+        "Crossing a review cutoff returns the request even if the first API call fails" {
+            scenario {
+                val teacher = login("T002")
+                val org = login("O001")
+                val (publishedId, qr) =
+                    published(
+                        org,
+                        teacher,
+                        obj(
+                            "startsAt" to "2030-05-02T02:00:00Z",
+                            "registrationDeadline" to "2030-05-01T13:00:00Z",
+                        ),
+                    )
+                val booking = request(HttpMethod.Post, "/register/$qr", org).asObject()
+                check(
+                    request(HttpMethod.Get, "/me", org)
+                        .asObject()["roles"]!!
+                        .jsonArray
+                        .map { it.jsonPrimitive.content }
+                        .toSet() == setOf("student", "organiser")
+                )
+                request(
+                        HttpMethod.Post,
+                        "/organiser/activities/$publishedId/edits",
+                        org,
+                        obj("location" to "Other campus"),
+                    )
+                    .expect(200)
+                val newId =
+                    submit(
+                        org,
+                        obj(
+                            "startsAt" to "2030-05-01T14:00:00Z",
+                            "registrationDeadline" to "2030-05-01T13:00:00Z",
+                        ),
+                    )
+                val queue =
+                    request(HttpMethod.Get, "/teacher/reviews", teacher).asArray().map {
+                        it.jsonObject
+                    }
+                val cutoff = Instant.parse("2030-05-01T02:00:00Z")
+                check(
+                    queue.size == 2 && queue.all { it.text("reviewDeadline") == timestamp(cutoff) }
+                )
+                clock.at = cutoff.minusMillis(1)
+                check(pending(teacher)["canApprove"] == JsonPrimitive(true))
+                clock.at = cutoff
+                decision(teacher, queue.first().text("reviewId")!!).errorIs(409, "REVIEW_EXPIRED")
+                check(
+                    db.transaction {
+                        one("SELECT count(*) AS n FROM reviews WHERE status='returned'")!!.number(
+                            "n"
+                        )
+                    } == 2
+                )
+                check(request(HttpMethod.Get, "/teacher/reviews", teacher).asArray().isEmpty())
+                val history =
+                    request(HttpMethod.Get, "/teacher/history", teacher)
+                        .asArray()
+                        .map { it.jsonObject }
+                        .filter { it.text("status") == "returned" }
+                check(
+                    history.size == 2 &&
+                        history.all {
+                            val decision = it.getValue("decision").jsonObject
+                            decision["reviewerId"] == JsonNull &&
+                                decision.text("reviewerName") == "System" &&
+                                !decision.text("reason").isNullOrBlank()
+                        }
+                )
+                val returned =
+                    request(HttpMethod.Get, "/organiser/activities/$newId", org).asObject()
+                check(
+                    returned.text("status") == "returned" &&
+                        returned.getValue("feedback").jsonObject.text("reviewerName") == "System"
+                )
+                request(HttpMethod.Get, "/activities/$newId").expect(404)
+                check(
+                    request(HttpMethod.Get, "/activities/$publishedId")
+                        .asObject()
+                        .text("location") == "Room A"
+                )
+                check(
+                    request(
+                            HttpMethod.Get,
+                            "/my/registrations/" + booking.text("registrationId"),
+                            org,
+                        )
+                        .asObject()
+                        .text("status") == "confirmed"
+                )
+                check(
+                    request(HttpMethod.Get, "/my/notices", org).asArray().count {
+                        it.jsonObject.text("type") == "review_returned"
+                    } == 2
+                )
+            }
+        }
+
         "Club access, reminder delivery, registration cutoff and sign out" {
             scenario {
                 val org = login("O001")
@@ -555,6 +763,11 @@ class WorkflowTest :
                 repeat(2) { db.transaction { processDue() } }
                 check(request(HttpMethod.Get, "/my/notices", member).asArray().size == 1)
                 val (secondId, secondKey) = published(org, teacher)
+                check(
+                    request(HttpMethod.Get, "/activities/$secondId")
+                        .asObject()
+                        .text("registrationClosesAt") == "2030-05-05T00:00:00.000Z"
+                )
                 clock.at = Instant.parse("2030-05-05T00:00:00Z")
                 val renewed = login("S001")
                 check(

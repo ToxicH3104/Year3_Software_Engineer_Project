@@ -1,37 +1,39 @@
 package campus.teacher
 
 import campus.activities.*
-import campus.auth.*
+import campus.auth.Actor
+import campus.auth.requireRole
 import campus.db.Tx
 import campus.http.*
 import java.time.Duration
 import kotlinx.serialization.json.*
 
+private val urgentWindow = Duration.ofHours(48)
+private const val expiredReason =
+    "No teacher reviewed this before the review deadline. Please check the time and resubmit."
+
 private const val reviewSelect =
     """SELECT r.*,a.clubId,c.clubName,u.displayName AS submitter,v.displayName AS reviewer
-    FROM reviews r JOIN activities a USING(activityId) JOIN clubs c USING(clubId)
+    FROM review_requests r JOIN activities a USING(activityId) JOIN clubs c USING(clubId)
     JOIN users u ON u.userId=r.submittedBy LEFT JOIN users v ON v.userId=r.reviewerId"""
 
-fun Tx.review(actor: Actor, id: String): JsonObject {
-    val row = one("$reviewSelect WHERE r.reviewId=?", id) ?: missing()
-    requireClub(actor, row.text("clubId")!!, "teacher")
-    return reviewView(row)
-}
+private fun Tx.reviewRow(id: String) = one("$reviewSelect WHERE r.reviewId=?", id) ?: missing()
+
+fun Tx.review(id: String) = reviewView(reviewRow(id))
 
 private fun Tx.reviewView(row: JsonObject): JsonObject {
     val proposed = Json.parseToJsonElement(row.text("proposed")!!).jsonObject
     val baseline = row.text("baseline")?.let { Json.parseToJsonElement(it).jsonObject }
     val changed =
         baseline?.let { old -> proposed.keys.filter { proposed[it] != old[it] } }.orEmpty()
-    val timeChange = row.text("kind") == "edit" && "startsAt" in changed
-    val tooClose =
-        timeChange && instant(proposed.text("startsAt"))!! < now.plus(Duration.ofHours(24))
+    val pending = row.text("status") == "pending"
+    val deadline = instant(row.text("reviewDeadline"))!!
     val decision =
-        row.text("reviewerId")?.let {
+        row.text("decidedAt")?.let {
             obj(
-                "reviewerId" to it,
-                "reviewerName" to row.text("reviewer"),
-                "decidedAt" to row.text("decidedAt"),
+                "reviewerId" to row.text("reviewerId"),
+                "reviewerName" to (row.text("reviewer") ?: "System"),
+                "decidedAt" to it,
                 "decision" to row.text("status"),
                 "reason" to row.text("reason"),
             )
@@ -45,6 +47,7 @@ private fun Tx.reviewView(row: JsonObject): JsonObject {
             "version",
             "submittedAt",
             "status",
+            "reviewDeadline",
         )
         .with(
             obj(
@@ -58,79 +61,104 @@ private fun Tx.reviewView(row: JsonObject): JsonObject {
                     row.text("previousReason")?.let {
                         obj("reason" to it, "decidedAt" to row.text("previousDecidedAt"))
                     },
-                "isTimeChange" to timeChange,
-                "canApprove" to (row.text("status") == "pending" && !tooClose),
-                "blockReason" to (if (tooClose) "TOO_CLOSE_TO_START" else null),
+                "isTimeChange" to (row.text("kind") == "edit" && "startsAt" in changed),
+                "isUrgent" to (pending && now < deadline && deadline <= now.plus(urgentWindow)),
+                "canApprove" to (pending && now < deadline),
                 "decision" to decision,
             )
         )
 }
 
-fun Tx.reviewList(actor: Actor, history: Boolean, sort: String?): JsonArray {
-    val condition =
-        if (history) "r.reviewerId=? AND r.status IN ('approved','returned')"
+fun Tx.reviewList(history: Boolean): JsonArray {
+    val items =
+        if (history)
+            rows(
+                "$reviewSelect WHERE r.status IN ('approved','returned') ORDER BY r.decidedAt DESC,r.queueOrder DESC"
+            )
         else
-            "r.status='pending' AND EXISTS(SELECT 1 FROM club_roles cr WHERE cr.clubId=a.clubId AND cr.userId=? AND cr.relation='teacher')"
-    val order =
-        when {
-            history -> "r.decidedAt DESC"
-            sort == "deadline" -> "json_extract(r.proposed,'$.registrationDeadline'), r.submittedAt"
-            else -> "r.submittedAt"
-        }
-    return JsonArray(
-        rows("$reviewSelect WHERE $condition ORDER BY $order,r.reviewId", actor.id).map {
-            reviewView(it)
-        }
+            rows(
+                """$reviewSelect WHERE r.status='pending'
+                ORDER BY CASE WHEN r.reviewDeadline<=? THEN r.reviewDeadline END ASC NULLS LAST,
+                    r.submittedAt, r.queueOrder""",
+                timestamp(now.plus(urgentWindow)),
+            )
+    return JsonArray(items.map { reviewView(it) })
+}
+
+private fun Tx.returnReview(row: JsonObject, reviewerId: String?, reason: String) {
+    exec(
+        "UPDATE reviews SET status='returned',reviewerId=?,decidedAt=?,reason=? WHERE reviewId=?",
+        reviewerId,
+        time,
+        reason,
+        row.text("reviewId"),
+    )
+    val activityId = row.text("activityId")!!
+    if (row.text("kind") == "new")
+        exec("UPDATE activities SET status='returned' WHERE activityId=?", activityId)
+    val title = Json.parseToJsonElement(row.text("proposed")!!).jsonObject.text("title")
+    notice(
+        row.text("submittedBy")!!,
+        activityId,
+        "review_returned",
+        "$title was returned for changes. $reason",
     )
 }
 
+fun Tx.expireOverdueReviews() {
+    for (row in
+        rows("SELECT * FROM review_requests WHERE status='pending' AND reviewDeadline<=?", time)) {
+        returnReview(row, null, expiredReason)
+    }
+}
+
 fun Tx.decide(actor: Actor, id: String, body: JsonObject): JsonObject {
-    val item = review(actor, id)
-    if (item.text("status") != "pending")
-        conflict("ALREADY_DECIDED", "This submission is no longer pending.")
-    val a = activity(item.text("activityId")!!)
-    val reason = body.text("reason")?.trim()
-    val decision =
-        when (body.text("decision")) {
-            "return" -> {
-                if (reason.isNullOrEmpty())
-                    throw ApiError(422, "REASON_REQUIRED", "Give the organiser a reason.")
-                if (item.text("kind") == "new")
-                    exec("UPDATE activities SET status='returned' WHERE activityId=?", a.id)
-                "returned"
-            }
-            "approve" -> {
-                if (item.text("blockReason") != null)
-                    conflict("TOO_CLOSE_TO_START", "The new start is less than 24 hours away.")
-                val f = item.getValue("proposed").jsonObject
-                if (item.text("kind") == "edit") {
-                    val shifted = item["isTimeChange"] == JsonPrimitive(true)
-                    val kind =
-                        if (shifted) "time_changed"
-                        else if (f["location"] != a.fields["location"]) "venue_changed"
-                        else "activity_changed"
-                    val message =
-                        if (shifted) "The start time changed. Please confirm your reserved place."
-                        else "The approved activity details have changed."
-                    notifyApprovedEdit(a, instant(f.text("startsAt"))!!, message, kind)
-                }
-                exec(
-                    "UPDATE activities SET status='published',fields=?,qrToken=COALESCE(qrToken,?) WHERE activityId=?",
-                    f.toString(),
-                    token(),
-                    a.id,
-                )
-                "approved"
-            }
-            else -> invalid("Choose approve or return.")
-        }
-    exec(
-        "UPDATE reviews SET status=?,reviewerId=?,decidedAt=?,reason=? WHERE reviewId=?",
-        decision,
-        actor.id,
-        time,
-        reason,
-        id,
+    actor.requireRole("teacher")
+    val row = reviewRow(id)
+    val status = row.text("status")
+    if (
+        (status == "pending" && now >= instant(row.text("reviewDeadline"))!!) ||
+            (status == "returned" && row.text("reviewerId") == null)
     )
-    return review(actor, id)
+        conflict("REVIEW_EXPIRED", "The review deadline has passed.")
+    if (status != "pending") conflict("ALREADY_DECIDED", "This submission is no longer pending.")
+    val reason = body.text("reason")?.trim()
+    when (body.text("decision")) {
+        "return" -> {
+            if (reason.isNullOrEmpty())
+                throw ApiError(422, "REASON_REQUIRED", "Give the organiser a reason.")
+            returnReview(row, actor.id, reason)
+        }
+        "approve" -> {
+            val a = activity(row.text("activityId")!!)
+            val f = Json.parseToJsonElement(row.text("proposed")!!).jsonObject
+            if (row.text("kind") == "edit") {
+                val start = instant(f.text("startsAt"))!!
+                val shifted = start != a.start()
+                val kind =
+                    if (shifted) "time_changed"
+                    else if (f["location"] != a.fields["location"]) "venue_changed"
+                    else "activity_changed"
+                val message =
+                    if (shifted) "The start time changed. Please confirm your reserved place."
+                    else "The approved activity details have changed."
+                notifyApprovedEdit(a, start, message, kind)
+            }
+            exec(
+                "UPDATE activities SET status='published',fields=?,qrToken=COALESCE(qrToken,?) WHERE activityId=?",
+                f.toString(),
+                token(),
+                a.id,
+            )
+            exec(
+                "UPDATE reviews SET status='approved',reviewerId=?,decidedAt=?,reason=? WHERE reviewId=?",
+                actor.id,
+                time,
+                reason,
+                id,
+            )
+        }
+        else -> invalid("Choose approve or return.")
+    }
+    return review(id)
 }

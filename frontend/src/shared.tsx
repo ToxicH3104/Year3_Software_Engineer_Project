@@ -15,16 +15,16 @@ import {
   Users,
   CalendarDays,
 } from "lucide-react";
-import { ApiError, type Activity, type User } from "./api";
+import { ApiError, hasRole, type Activity, type User } from "./api";
 export const Session = createContext<{
   user: User | null;
   setUser: (u: User | null) => void;
 }>({ user: null, setUser: () => {} });
 export const useSession = () => useContext(Session);
-export const dash = (role: string) =>
-  role === "organiser"
+export const dash = (user: User) =>
+  hasRole(user, "organiser")
     ? "/organiser/activities"
-    : role === "teacher"
+    : hasRole(user, "teacher")
       ? "/teacher/reviews"
       : "/activities";
 export const date = (
@@ -34,13 +34,15 @@ export const date = (
     day: "numeric",
     year: "numeric",
   },
-) =>
-  s
+) => {
+  const value = s ? new Date(s) : null;
+  return value && Number.isFinite(value.getTime())
     ? new Intl.DateTimeFormat("en-GB", {
         timeZone: "Asia/Shanghai",
         ...opts,
-      }).format(new Date(s))
+      }).format(value)
     : "—";
+};
 export const moment = (s?: string) =>
   date(s, {
     day: "numeric",
@@ -50,12 +52,30 @@ export const moment = (s?: string) =>
     minute: "2-digit",
     hour12: false,
   });
-export const localInput = (s?: string | null) =>
-  s
-    ? new Date(new Date(s).getTime() + 8 * 3600000).toISOString().slice(0, 16)
+export const localInput = (s?: string | null) => {
+  const ms = s ? Date.parse(s) : NaN;
+  return Number.isFinite(ms)
+    ? new Date(ms + 8 * 3600000).toISOString().slice(0, 16)
     : "";
-export const fromInput = (s: string) =>
-  s ? new Date(s + ":00+08:00").toISOString() : "";
+};
+export function isCalendarDay(day: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const value = new Date(day + "T12:00:00Z");
+  return (
+    Number.isFinite(value.getTime()) && value.toISOString().slice(0, 10) === day
+  );
+}
+export function fromInput(value: string, field: string) {
+  if (!value) return "";
+  if (
+    !isCalendarDay(value.slice(0, 10)) ||
+    !/^.{10}T([01]\d|2[0-3]):[0-5]\d$/.test(value)
+  ) {
+    const message = "Enter a date as YYYY-MM-DD and a 24-hour time as HH:mm.";
+    throw new ApiError(message, 422, { [field]: message });
+  }
+  return new Date(value + ":00+08:00").toISOString();
+}
 export const names: Record<string, string> = {
   open: "Open",
   full: "Full",
@@ -68,6 +88,7 @@ export const names: Record<string, string> = {
   confirmed: "Confirmed",
   cancelled: "Cancelled",
   pending: "Pending",
+  urgent: "Urgent",
   approved: "Approved",
   withdrawn: "Withdrawn",
 };
@@ -150,7 +171,11 @@ export function Facts({ a }: { a: Activity }) {
           "Places",
           a.remaining + " of " + (a.capacity ?? "—") + " available",
         ],
-        [Clock3, "Register by", moment(a.registrationDeadline)],
+        [
+          Clock3,
+          "Register by",
+          moment(a.registrationClosesAt ?? a.registrationDeadline),
+        ],
       ].map(([I, n, v]) => {
         const Icon = I as typeof Clock3;
         return (

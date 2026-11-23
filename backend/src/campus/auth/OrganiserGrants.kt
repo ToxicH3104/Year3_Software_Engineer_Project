@@ -18,14 +18,9 @@ fun Tx.organiserCandidate(universityId: String?): JsonObject {
     if (universityId.isNullOrBlank()) invalid("Enter the university ID of an existing account.")
     return one(
         """SELECT userId,universityId,displayName FROM users WHERE universityId=? COLLATE NOCASE
-            AND accountStatus='active' AND role IN ('student','organiser')""",
+            AND accountStatus='active' AND role='student'""",
         universityId.trim(),
-    )
-        ?: throw ApiError(
-            404,
-            "NO_ELIGIBLE_ACCOUNT",
-            "No active student or organiser account matches that ID.",
-        )
+    ) ?: throw ApiError(404, "NO_ELIGIBLE_ACCOUNT", "No active student account matches that ID.")
 }
 
 fun Tx.grantOrganiser(

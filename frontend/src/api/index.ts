@@ -29,10 +29,11 @@ export interface Activity extends Partial<Fields> {
   confirmedCount: number;
   reservedCount: number;
   registrationState: string;
+  registrationClosesAt?: string | null;
   myRegistration?: { registrationId: string; status: string } | null;
   registrationLink?: string | null;
   qrToken?: string | null;
-  feedback?: { reason: string } | null;
+  feedback?: { reason: string; reviewerName: string; decidedAt: string } | null;
   pendingEdit?: { reviewId: string } | null;
   cancelReason?: string | null;
 }
@@ -54,13 +55,19 @@ export interface Review {
   kind: string;
   submittedBy: string;
   submittedAt: string;
+  reviewDeadline: string;
+  isUrgent: boolean;
   proposed: Fields;
   previous: Fields | null;
   previousFeedback?: { reason: string } | null;
   changedFields: (keyof Fields)[];
   canApprove: boolean;
-  blockReason?: string;
-  decision?: { reviewerName: string; reason: string; decidedAt: string };
+  decision?: {
+    reviewerId: string | null;
+    reviewerName: string;
+    reason: string | null;
+    decidedAt: string;
+  } | null;
 }
 export interface Club {
   clubId: string;
@@ -108,19 +115,34 @@ export async function api<T>(
     );
   return data as T;
 }
-export function useData<T>(path: string, refresh = 0) {
+export function useData<T>(path: string, refresh = 0, pollMs = 0) {
   const [state, set] = useState<{ key: string; data?: T; error?: string }>({
     key: "",
   });
   const key = path + "#" + refresh;
   useEffect(() => {
     const c = new AbortController();
-    api<T>(path, "GET", undefined, c.signal)
-      .then((data) => set({ key, data }))
-      .catch((e) => {
-        if (!c.signal.aborted) set({ key, error: e.message });
-      });
-    return () => c.abort();
-  }, [path, key]);
+    let timer: number;
+    async function load() {
+      try {
+        const data = await api<T>(path, "GET", undefined, c.signal);
+        if (!c.signal.aborted) set({ key, data });
+      } catch (e) {
+        if (!c.signal.aborted)
+          set({
+            key,
+            error: e instanceof Error ? e.message : "Unable to load this page.",
+          });
+      } finally {
+        if (pollMs && !c.signal.aborted)
+          timer = window.setTimeout(load, pollMs);
+      }
+    }
+    void load();
+    return () => {
+      c.abort();
+      window.clearTimeout(timer);
+    };
+  }, [path, key, pollMs]);
   return state.key === key ? state : { key };
 }

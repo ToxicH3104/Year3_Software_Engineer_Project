@@ -1,6 +1,5 @@
 package campus
 
-import campus.activities.processDue
 import campus.auth.authRoutes
 import campus.auth.grantOrganiser
 import campus.db.Database
@@ -119,7 +118,7 @@ fun Application.campusApi(db: Database, publicUrl: String, startWorker: Boolean 
                 try {
                     db.transaction { processDue() }
                 } catch (error: java.sql.SQLException) {
-                    log.error("Could not process due reservations and reminders", error)
+                    log.error("Could not process scheduled reviews and bookings", error)
                 }
                 delay(15_000)
             }

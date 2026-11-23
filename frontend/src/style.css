@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "flatpickr/dist/flatpickr.css";
 @font-face {
   font-family: DM Sans;
   src: url("/fonts/dm-sans.woff2") format("woff2");
@@ -406,6 +407,46 @@ small,
   align-items: center;
   font-size: 14px;
 }
+.calendar-field,
+.calendar-date {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.calendar-field {
+  gap: 8px;
+}
+.calendar-date {
+  position: relative;
+  flex: 1;
+}
+.calendar-date > input:not([hidden]) {
+  width: 100%;
+  min-width: 0;
+  padding-right: 40px;
+}
+.calendar-date > button {
+  position: absolute;
+  right: 1px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 40px;
+  color: var(--pine);
+  border-radius: 5px;
+}
+.calendar-field > .calendar-clock {
+  width: 5.8em;
+}
+.filterline .calendar-date {
+  width: 150px;
+}
+.flatpickr-day.selected,
+.flatpickr-day.selected:hover,
+.flatpickr-day.selected:focus {
+  background: var(--pine);
+  border-color: var(--pine);
+}
 .cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -501,6 +542,7 @@ small,
   background: currentColor;
 }
 .badge.cancelled,
+.badge.urgent,
 .badge.full,
 .badge.closed,
 .badge.returned {

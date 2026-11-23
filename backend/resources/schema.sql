@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS reviews(reviewId TEXT PRIMARY KEY, activityId TEXT NO
 
 CREATE UNIQUE INDEX IF NOT EXISTS one_pending_review ON reviews(activityId) WHERE status='pending';
 
+CREATE VIEW IF NOT EXISTS review_requests AS
+SELECT r.*, r.rowid AS queueOrder, strftime('%Y-%m-%dT%H:%M:%fZ', json_extract(r.proposed,'$.startsAt'),
+    CASE r.kind WHEN 'edit' THEN '-24 hours' ELSE '-12 hours' END) AS reviewDeadline
+FROM reviews r;
+
 CREATE TABLE IF NOT EXISTS registrations(registrationId TEXT PRIMARY KEY, activityId TEXT NOT NULL REFERENCES activities, studentId TEXT NOT NULL REFERENCES users, status TEXT NOT NULL CHECK(status IN ('confirmed','reserved','cancelled')), registeredAt TEXT NOT NULL, reminderAt TEXT, reservationDeadline TEXT, UNIQUE(activityId,studentId));
 
 CREATE INDEX IF NOT EXISTS student_bookings ON registrations(studentId);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -12,7 +12,17 @@ import {
   X,
 } from "lucide-react";
 import { useData, type Activity } from "../api";
-import { Art, Badge, date, Empty, Heading, Load } from "../shared";
+import {
+  Art,
+  Badge,
+  date,
+  Empty,
+  Heading,
+  isCalendarDay,
+  Load,
+  localInput,
+} from "../shared";
+import { CalendarField } from "../CalendarField";
 
 export default function Board() {
   const { data, error } = useData<Activity[]>("/activities");
@@ -21,6 +31,10 @@ export default function Board() {
     club = params.get("club") || "",
     day = params.get("date") || "";
   const [showDate, setShowDate] = useState(Boolean(day));
+  const [dateDraft, setDateDraft] = useState(day);
+  const invalidDate = dateDraft.length === 10 && !isCalendarDay(dateDraft);
+  const dateId = useId();
+  useEffect(() => setDateDraft(day), [day]);
   const set = (k: string, v: string) => {
     const next = new URLSearchParams(params);
     if (v) next.set(k, v);
@@ -28,16 +42,11 @@ export default function Board() {
     setParams(next, { replace: true });
   };
   const filtered = Boolean(q || club || day);
-  const today = (s: string) =>
-    date(s, { year: "numeric", month: "2-digit", day: "2-digit" })
-      .split("/")
-      .reverse()
-      .join("-");
   const list = (data ?? []).filter(
     (a) =>
       (a.title || "").toLowerCase().includes(q.trim().toLowerCase()) &&
       (!club || a.clubId === club) &&
-      (!day || (a.startsAt && today(a.startsAt) === day)),
+      (!day || localInput(a.startsAt).slice(0, 10) === day),
   );
   const featured = !filtered
     ? (list.find((a) => a.registrationState === "open") ?? list[0])
@@ -129,14 +138,24 @@ export default function Board() {
         {(showDate || filtered) && (
           <div className="filterline">
             {showDate && (
-              <label>
-                Activity date{" "}
-                <input
-                  type="date"
-                  value={day}
-                  onChange={(e) => set("date", e.target.value)}
+              <>
+                <label htmlFor={dateId}>Activity date</label>
+                <CalendarField
+                  id={dateId}
+                  label="Activity date"
+                  value={dateDraft}
+                  invalid={invalidDate}
+                  onChange={(value) => {
+                    setDateDraft(value);
+                    if (!value || isCalendarDay(value)) set("date", value);
+                  }}
                 />
-              </label>
+                {invalidDate && (
+                  <small className="fielderr" id={dateId + "-error"}>
+                    Enter a valid date as YYYY-MM-DD.
+                  </small>
+                )}
+              </>
             )}
             {filtered && (
               <button
@@ -197,7 +216,7 @@ export default function Board() {
                   </div>
                   <div className="line-meta deadline">
                     <Clock3 /> Register by{" "}
-                    {date(a.registrationDeadline, {
+                    {date(a.registrationClosesAt ?? a.registrationDeadline, {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",

@@ -1,8 +1,8 @@
 package campus.http
 
-import campus.activities.processDue
 import campus.auth.*
 import campus.db.*
+import campus.processDue
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -15,10 +15,22 @@ const val sessionCookie = "club_session"
 class Api(val db: Database, val publicUrl: String, val zone: java.time.ZoneId) {
     suspend fun <T> transaction(block: Tx.() -> T): T =
         withContext(Dispatchers.IO) {
-            db.transaction {
-                processDue()
-                block()
-            }
+            val result =
+                db.transaction {
+                    processDue()
+                    // Keep due work even when the request fails a business rule.
+                    exec("SAVEPOINT request")
+                    val response =
+                        try {
+                            Result.success(block())
+                        } catch (e: ApiError) {
+                            exec("ROLLBACK TO request")
+                            Result.failure(e)
+                        }
+                    exec("RELEASE request")
+                    response
+                }
+            result.getOrThrow()
         }
 
     suspend fun reply(call: ApplicationCall, block: Tx.(Actor?) -> JsonElement) {

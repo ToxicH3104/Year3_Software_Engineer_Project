@@ -72,8 +72,8 @@ function AccountForm({ signup = false }: { signup?: boolean }) {
         next &&
         /^\/(?![\/\\])/.test(next) &&
         !next.includes("\\") &&
-        (u.role === "student" || !/^\/(register|my)\//.test(next));
-      nav(allowed ? next! : dash(u.role), { replace: true });
+        (hasRole(u, "student") || !/^\/(register|my)\//.test(next));
+      nav(allowed ? next! : dash(u), { replace: true });
     });
   return (
     <div className="login-shell">
@@ -208,7 +208,7 @@ function Gate({ role, children }: { role: Role; children: ReactNode }) {
         title="Access restricted"
         sub={"This page requires a " + role + " account."}
       />
-      <Link className="btn" to={dash(user.role)}>
+      <Link className="btn" to={dash(user)}>
         My workspace
       </Link>
     </>
@@ -260,7 +260,7 @@ function App() {
           <Brand />
           <nav aria-label="Main navigation">
             <NavLink to="/activities">Activity board</NavLink>
-            {(!user || user.role === "student") && (
+            {(!user || hasRole(user, "student")) && (
               <NavLink to="/my/registrations">My registrations</NavLink>
             )}
             {user && hasRole(user, "organiser") && (

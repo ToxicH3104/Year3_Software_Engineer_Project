@@ -20,7 +20,7 @@ Items marked **[PROPOSED]** are our suggestions (routes, names), not agreed desi
 | Account administrator | Wei Zhang | Desktop | Find the right account, change roles, suspend/restore with reason |
 
 ## 3. Status workflows
-**Activity version:** `Draft → Awaiting review → Approved/Published | Returned for changes | Rejected`. Returned → edit → resubmit as a new version.
+**Activity version:** `Draft → Awaiting review → Approved/Published | Returned for changes`. Returned → edit → resubmit as a new version.
 **Published activity states:** `Active | Cancelled` (and registration `Open | Full | Closed`).
 **Edit of a published activity** = new review item; the old approved version stays live until approval.
 **Registration:** `Confirmed | Cancelled` (and, after an approved time change, `Reserved – awaiting confirmation`).
@@ -31,7 +31,7 @@ Items marked **[PROPOSED]** are our suggestions (routes, names), not agreed desi
 - Registration refused with an explanatory message when: full, cancelled, closed, or deadline passed. Registration also **closes 12 h before start** (B17).
 - No duplicate bookings; repeating/scanning again shows the existing booking. Last place cannot be given to two students.
 - Student may cancel a registration **≥ 24 h before start**; the place is released (B21–22).
-- Organiser may cancel an activity (confirm activity name + reason); registration closes immediately, no review needed; registered students notified (email) and see the reason; QR code then shows a cancellation message (B23–25).
+- Organiser may cancel an activity (confirm activity name + reason); registration closes immediately, no review needed; registered students notified in the app and see the reason; QR code then shows a cancellation message (B23–25).
 - Each club has a member list and **at most 3 organisers**; club-only activities limited to members; organisers manage only their own club (B5–B7).
 - Capacity must be a positive whole number; registration deadline before activity start; required fields validated (B9).
 - Edits to a published activity (venue, later deadline, larger capacity, time) go to teacher review (B26–27). Unchanged time keeps registrations (B28). **Approved time change:** places reserved pending student confirm/decline; unconfirmed reservations auto-cancel 24 h before the new start; a time change cannot be approved < 24 h before the new start (B30–35).
@@ -72,9 +72,9 @@ Items marked **[PROPOSED]** are our suggestions (routes, names), not agreed desi
 ### Teacher
 | Route | Template | Purpose | Story |
 |---|---|---|---|
-| `GET /teacher/reviews` | `teacher/queue.peb` | Pending queue (club, title, submitted time, deadline); sort oldest / nearest deadline | US10, B11 |
+| `GET /teacher/reviews` | `teacher/queue.peb` | Shared queue across all clubs. Reviews due within 48 hours come first by review deadline, then other submissions in arrival order. | US10, B11 |
 | `GET /teacher/reviews/{id}` | `teacher/review.peb` | Full details; for edits/resubmissions show changed fields with old vs proposed values and previous feedback | US11–12 |
-| `POST /teacher/reviews/{id}/decision` | redirect | Approve / Request changes / Reject (reason required for last two) | US11, B12 |
+| `POST /teacher/reviews/{id}/decision` | redirect | Approve or return with a reason. At the review deadline the system returns the submission. | US11, B12 |
 | `GET /teacher/history` | `teacher/history.peb` | Past decisions | US10, US12 |
 
 ### Administrator
@@ -93,13 +93,13 @@ Access control: every protected route checks role **and** club ownership server-
 - **Registered Activities (US03):** only my bookings; upcoming in date order; name, time, current venue, status; change/cancel notices visible; clear empty state.
 - **Reminder (US04):** choose time; invalid time → explanation, correctable; can switch off.
 - **Create/submit (US05):** save draft and reopen intact; on submit, errors shown **beside** each field, other values kept; after submit status "Awaiting review", no registration/QR yet.
-- **Feedback (US06):** status visible (Draft / Awaiting review / Returned / Rejected / Published); teacher reason shown; resubmit as new version; QR appears only after approval.
+- **Feedback (US06):** status visible (Draft / Awaiting review / Returned / Published); teacher or system reason shown; resubmit as new version; QR appears only after approval.
 - **Participants (US07):** list + total registered + capacity together; each participant once with university ID.
 - **Revise published (US08):** venue, later deadline, larger capacity; pending edit shows approved details still in use; rejection keeps approved version and shows reason.
 - **Cancel (US09):** confirm activity name + reason; students see cancellation + reason; QR shows cancellation message.
-- **Queue/review (US10–12):** sortable queue; three decisions with required reason for two; changed fields highlighted, old vs proposed shown.
+- **Queue/review (US10–12):** shared, urgency-ordered queue with approval or a reason for return; changed fields highlighted, old vs proposed shown.
 - **Admin (US13–15):** exact-ID search returns one account or no-match message; confirm dialog/page before role change, suspend, restore; results show university ID.
-- **Notifications:** change notices and cancellation notices appear in Registered Activities (email sending is backend; B24, B29, B37 are priority 1–2 and may be simulated).
+- **Notifications:** approved changes, cancellations, returned reviews, released places and reminders are delivered in the app.
 
 ## 7. Accessibility and usability standard (WCAG 2.2 AA target; Week 8 lab)
 Four principles: **perceivable, operable, understandable, robust**.
@@ -132,7 +132,7 @@ Chat, social features, competition rankings (appear only in an unrelated draft),
 1. Can anonymous visitors browse activities? Backlog B1 says yes; US01 says "signed-in student". Default: **browse public, sign in to register**.
 2. Club-only activities: hidden from non-members or visible but not registrable?
 3. Is "club announcement / news post" (spec, G17 stories) in scope in addition to activities?
-4. Email: real sending or on-screen notice only?
+4. The team selected in-app delivery for notifications.
 5. Wireframes: Week 8 sheets in the repo are blank — are there team wireframes to follow?
 
 ## Appendix A — Backlog (F = functional; priority 1 must, 2 should; size XS–XL)

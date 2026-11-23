@@ -35,7 +35,7 @@ Each seeded demo account uses the password `demo-` followed by its university ID
 
 Teachers can choose **Manage clubs → New club**, enter a name and create a club. The creator becomes its supervising teacher and can immediately assign an organiser.
 
-A club's teacher can grant access from **Review queue → Manage clubs**. The teacher looks up an existing account by exact university ID, checks the name and records a reason. Students keep their bookings and student access. A student with an open browser session can refresh to see **My activities**. Each club has up to three organisers, including system-provisioned organisers.
+All teachers share the activity review queue. A club's supervising teacher can grant access from **Review queue → Manage clubs**. The teacher looks up an existing account by exact university ID, checks the name and records a reason. Students keep their bookings and student access. A student with an open browser session can refresh to see **My activities**. Each club has up to three organisers, including system-provisioned organisers.
 
 For a system grant, run the following from the backend directory with the same database path as the server. Substitute the club ID, the existing university ID and the reason.
 

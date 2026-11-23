@@ -210,6 +210,6 @@ type Notice = { noticeId: string; type: 'venue_changed'|'time_changed'|'cancelle
 1. ~~B1 与 User Stories5 冲突~~ **已决定**：以 backlog 为准，**公开浏览，报名才要登录**。
 2. 搜索是否要加"按日期筛选"（US01 有，backlog B2 只有关键词）？
 3. club-only 活动：对非成员**隐藏**，还是**可见但不能报**？（B7 只说"限制"）
-4. 提醒只是站内显示，还是模拟邮件？（backlog 写 email）
+4. 已决定采用站内通知。取消、变更、预约名额释放和到时提醒可在 My registrations 查看。
 5. 二维码里的 `token` 用什么？（建议随机字符串，别用自增 ID）
 6. B30–B35（时间变更与预留）工作量大（L）且依赖组织者和老师两端，**建议最后做**，先把 B1–B4、B15–B19、B21 主线做稳。

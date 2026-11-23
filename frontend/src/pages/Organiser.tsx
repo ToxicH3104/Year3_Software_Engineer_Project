@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, Plus, Download } from "lucide-react";
+import { CalendarField } from "../CalendarField";
 import {
   api,
   useData,
@@ -71,7 +72,7 @@ export function OrganiserDetail() {
   const { id } = useParams(),
     base = home + "/" + id,
     [rev, reload] = useState(0),
-    { data: a, error } = useData<Activity>(base, rev),
+    { data: a, error } = useData<Activity>(base, rev, 15_000),
     act = useAction(),
     [cancel, setCancel] = useState(false),
     [reason, setReason] = useState(""),
@@ -95,7 +96,9 @@ export function OrganiserDetail() {
       />
       {act.feedback}
       {a.feedback && (
-        <p className="notice">Teacher feedback · {a.feedback.reason}</p>
+        <p className="notice">
+          Returned by: {a.feedback.reviewerName} · {a.feedback.reason}
+        </p>
       )}
       {a.pendingEdit && (
         <p className="notice">
@@ -280,6 +283,17 @@ function Editor({ clubs, a }: { clubs: Club[]; a?: Activity }) {
     return (
       <Field label={label} error={act.fields[k]}>
         {(id) => {
+          if (type === "datetime")
+            return (
+              <CalendarField
+                id={id}
+                label={label}
+                value={f[k]}
+                withTime
+                invalid={!!act.fields[k]}
+                onChange={(value) => update(k, value)}
+              />
+            );
           const props = {
             id,
             value: f[k],
@@ -311,8 +325,11 @@ function Editor({ clubs, a }: { clubs: Club[]; a?: Activity }) {
     act.run(async () => {
       const fields = {
         ...f,
-        startsAt: fromInput(f.startsAt),
-        registrationDeadline: fromInput(f.registrationDeadline),
+        startsAt: fromInput(f.startsAt, "startsAt"),
+        registrationDeadline: fromInput(
+          f.registrationDeadline,
+          "registrationDeadline",
+        ),
         capacity: f.capacity === "" ? null : Number(f.capacity),
       };
       let item: Activity;
@@ -349,7 +366,7 @@ function Editor({ clubs, a }: { clubs: Club[]; a?: Activity }) {
         sub={
           published
             ? "Proposed changes take effect after teacher approval."
-            : "Save a draft or send the activity to your teacher for review."
+            : "Save a draft or submit the activity to the review queue."
         }
       />
       <form className="panel form editor" onSubmit={save} noValidate>
@@ -374,11 +391,11 @@ function Editor({ clubs, a }: { clubs: Club[]; a?: Activity }) {
         {field("description", "Description", "textarea", published)}
         {field("location", "Venue")}
         <div className="form-grid">
-          {field("startsAt", "Start time (Shanghai)", "datetime-local")}
+          {field("startsAt", "Start time (Shanghai)", "datetime")}
           {field(
             "registrationDeadline",
             "Registration deadline (Shanghai)",
-            "datetime-local",
+            "datetime",
           )}
           {field("capacity", "Capacity", "number")}
           <Field label="Visibility">

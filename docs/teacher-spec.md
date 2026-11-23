@@ -4,7 +4,7 @@
 **用途**：前端（React）先用 mock 数据实现；后端按此反推 API 和 SQLite 表。
 标 **[PROPOSED]** 是我们自己提议的命名和路径；标 **[OPEN]** 需要团队决定。
 
-主要用户：Qian Zhou，负责几个俱乐部的审核，教学之余处理审核。**用电脑**。
+主要用户：Qian Zhou，与其他老师共同审核各俱乐部的活动，教学之余处理审核。**用电脑**。
 需求：一个队列找到待办、信息完整可检查、每个决定都对应她审核的那个版本。
 
 > 老师端是三个端里**功能最少**的：本质上是"一个列表 + 一个详情 + 两三个按钮"。但没有它，活动无法发布，整条"发布 → 审核 → 二维码 → 报名"链路就断了，所以必须有，做精简即可。
@@ -32,6 +32,8 @@
 | `/teacher/reviews` | ReviewQueue | 待审核队列 | B11 |
 | `/teacher/reviews/:id` | ReviewDetail | 审核详情 + 决定 | B11, B12, B26, B34 |
 | `/teacher/history` | ReviewHistory | 已做出的决定 | US10（backlog 未单列） |
+| `/teacher/organisers` | Manage clubs | 查看自己负责的社团，按学号查找账号并授予组织者权限 | B6 |
+| `/teacher/clubs/new` | Create a club | 教师填写社团名称，创建后自动成为负责老师，可立即指定组织者 | 项目扩展 |
 
 老师登录后默认进入 `/teacher/reviews`。导航：Pending Reviews、History、退出。
 
@@ -40,9 +42,9 @@
 ## 3. 各页面内容与交互
 
 ### 3.1 ReviewQueue（B11）
-- **只显示分配给这位老师的俱乐部**中，等待审核的提交。
-- 每项：俱乐部、活动标题、**提交时间**、**报名截止时间**、类型标记（"新活动" / "修改"）。
-- 排序：**最早提交**（默认）、**最近的报名截止时间**。
+- 所有老师共享各俱乐部的待审核提交。老师为社团授予组织者权限时，仍只管理自己负责的社团。
+- 每项：俱乐部、活动标题、**提交时间**、**审核截止时间**、类型标记（"新活动" / "修改"）。
+- 距审核截止 48 小时以内的提交标为 Urgent，按审核截止先后排列。其余按提交先后排列。
 - 做出决定后，该项从队列消失，但保留在 History。
 - 空状态："没有待审核的活动"。
 
@@ -51,7 +53,7 @@
 - 介绍、日期时间、地点、参加要求、人数上限、报名截止时间、所属俱乐部、可见范围（public / club_only）。
 
 **重新提交（被退回后再提交）**——还要显示：
-- 上一次的**老师意见**。
+- 上一次的退回理由。
 - **变更了哪些字段**（高亮），旧值 vs 新值（US12）。
 
 **已发布活动的修改（`kind = edit`，B26）**——显示：
@@ -62,16 +64,16 @@
 
 | 按钮 | 要求 | 结果 |
 |---|---|---|
-| **Approve 通过** | 无 | 新活动：发布并生成二维码；修改：新值替换公开详情，二维码不变 |
-| **Request changes / Return 退回** | **必须写理由**（文本框） | 状态变 `returned`（界面标 "Needs changes"），保持未发布；组织者看到反馈并可重新提交 |
+| **Approve 通过** | 在审核截止之前 | 新活动：发布并生成二维码；修改：新值替换公开详情，二维码不变 |
+| **Request changes / Return 退回** | **必须写理由**（文本框） | 状态变 `returned`（界面标 "Needs changes"），组织者收到站内通知并可重新提交；涉及修改时保留此前发布的版本 |
 
 - 理由为空时：错误显示在文本框旁，并有汇总提醒，**已写内容保留**。
-- 只有被分配到该俱乐部的老师能做决定。
-- **B34 规则**：如果是**时间变更**，且新开始时间距现在**不足 24 小时**，**"通过"按钮禁用**，并说明"距新的开始时间不足 24 小时，无法批准时间变更"，只允许退回。
+- 每位老师都可以审核任意社团。最先成功提交的决定生效。
+- 新活动在开始前 12 小时截止审核。已发布活动的所有修改均在提议的开始时间前 24 小时截止。到点后系统退回，记录原因，页面显示 `Returned by: System`。
 - 每个决定都要记录：**审核人、时间、意见、被审核的版本**。
 
 ### 3.3 ReviewHistory
-- 列出已做决定的审核项：俱乐部、标题、决定、时间、意见。
+- 列出所有老师的决定和系统自动退回的审核项：俱乐部、标题、决定、时间、意见。
 - 点进去只读查看当时审核的那个版本。
 - 空状态："还没有审核记录"。
 
@@ -109,9 +111,10 @@ type ReviewItem = {
   changedFields?: string[]             // 与上一版相比变化的字段
   previousFeedback?: { reason: string; decidedAt: string }
   isTimeChange: boolean                // 是否包含开始时间变更
-  canApprove: boolean                  // 服务端算出：false 时附 blockReason
-  blockReason?: 'TOO_CLOSE_TO_START'
-  decision?: { reviewerId: string; reviewerName: string; decidedAt: string; decision: 'approved'|'returned'; reason?: string }
+  reviewDeadline: string
+  isUrgent: boolean
+  canApprove: boolean
+  decision?: { reviewerId: string | null; reviewerName: string; decidedAt: string; decision: 'approved'|'returned'; reason?: string }
 }
 
 type ActivityFields = {
@@ -120,22 +123,22 @@ type ActivityFields = {
   visibility: 'public' | 'club_only'
 }
 ```
-老师与俱乐部的分配关系 `teacher_clubs(teacherId, clubId)` 用 **seed data**（账号管理不做）。
+教师账号和负责的社团由系统分配。教师可为自己负责的社团授权组织者，系统也可直接授权。学生获得授权后保留原账号和报名记录。
 
 ---
 
 ## 6. API [PROPOSED]
 
-前缀 `/api`；cookie session；服务端校验"角色 = teacher 且该审核项属于我被分配的俱乐部"。
+审核接口使用 `/api` 前缀和 cookie session。服务端验证教师身份。
 
 | 方法 + 路径 | 作用 |
 |---|---|
-| `GET /teacher/reviews?sort=submitted\|deadline` | 待审核队列 |
+| `GET /teacher/reviews` | 待审核队列 |
 | `GET /teacher/reviews/:id` | 审核详情（含变更对比、上次意见、`canApprove`） |
 | `POST /teacher/reviews/:id/decision` | 提交决定：`{ "decision": "approve" \| "return", "reason": "..." }` |
 | `GET /teacher/history` | 已做决定的审核项 |
 
-**错误**：`FORBIDDEN`（不是你的俱乐部）、`REASON_REQUIRED`（退回没写理由）、`TOO_CLOSE_TO_START`（B34）、`ALREADY_DECIDED`（已被处理，防止重复提交）、`NOT_FOUND`。
+**错误**：`FORBIDDEN`（缺少教师权限）、`REASON_REQUIRED`（退回没写理由）、`REVIEW_EXPIRED`（已到审核截止时间）、`ALREADY_DECIDED`（已被处理，防止重复提交）、`NOT_FOUND`。
 
 **通过时后端要做的事**：
 - 新活动：`status = published`，生成 `qrToken`。
@@ -149,18 +152,18 @@ type ActivityFields = {
 - 被退回后重新提交（有上次意见 + 变更字段高亮）
 - 已发布活动的地点修改（旧值 vs 新值）
 - 已发布活动的**时间变更**，且**距新开始不足 24 小时**（`canApprove = false`）
-- 队列里多条，用于测试两种排序（提交时间不同、截止时间不同）
+- 队列中同时有紧急和普通提交，验证 48 小时边界及各自的排序
 - 空队列、空历史
 - 提交退回但没写理由（错误提示）
 - 重复点击通过（`ALREADY_DECIDED`）
-- 别的俱乐部的审核项（403）
+- 老师可处理其他俱乐部的审核项；学生访问审核接口返回 403
 - 加载中、请求失败
 
 ---
 
 ## 8. 验收要点（摘自 US10–US12）
 
-- 队列只显示分配给我的、待审核的提交；可按最早提交或最近截止排序。
+- 不同老师看到同一待审核队列，临近审核截止的提交排在最前。
 - 决定后该项离开队列，但留在历史里。
 - 审核页一次看到：介绍、日期时间、地点、要求、容量、截止时间。
 - 退回必须写理由，且理由对组织者可见。
@@ -177,4 +180,4 @@ type ActivityFields = {
 2. **History 页**不在 backlog，只在 US10 提及。先做简单版，或放到最后。
 3. 老师和俱乐部的**分配**怎么来？没有管理员功能，用 seed data 固定。
 4. 退回后的状态叫 `returned`（"Needs changes"）：User Stories5 用 "Needs Changes"，Group 15 用 "Returned for changes"，统一用 **Needs changes** 作界面文字。
-5. 这位老师是否可以审核同一俱乐部里**自己没被分配**的活动？按 US11：**不可以**。
+5. 按 `club-uml.md`，老师可跨社团审核活动。社团组织者的授权仍由负责老师或系统处理。

@@ -12,7 +12,9 @@ fun Tx.managed(actor: Actor, id: String): Activity =
 fun Tx.manageView(a: Activity): JsonObject {
     val last =
         one(
-            "SELECT reason,decidedAt,status FROM reviews WHERE activityId=? ORDER BY version DESC LIMIT 1",
+            """SELECT r.reason,r.decidedAt,r.status,COALESCE(u.displayName,'System') AS reviewerName
+            FROM reviews r LEFT JOIN users u ON u.userId=r.reviewerId
+            WHERE r.activityId=? ORDER BY r.version DESC LIMIT 1""",
             a.id,
         )
     val pending =
@@ -25,7 +27,9 @@ fun Tx.manageView(a: Activity): JsonObject {
             obj(
                 "qrToken" to a.qr,
                 "feedback" to
-                    last?.takeIf { it.text("status") == "returned" }?.only("reason", "decidedAt"),
+                    last
+                        ?.takeIf { it.text("status") == "returned" }
+                        ?.only("reason", "decidedAt", "reviewerName"),
                 "pendingEdit" to
                     pending?.with(
                         obj("proposed" to Json.parseToJsonElement(pending.text("proposed")!!))
@@ -71,11 +75,11 @@ fun Tx.submitActivity(actor: Actor, id: String, edits: JsonObject? = null): Json
 }
 
 private fun Tx.submitReview(actor: Actor, a: Activity, proposed: JsonObject, edit: Boolean) {
-    if (edit && a.status != "published" || !edit && a.status !in setOf("draft", "returned"))
-        conflict("NOT_EDITABLE", "This activity cannot be submitted in its current state.")
     val last = one("SELECT * FROM reviews WHERE activityId=? ORDER BY version DESC LIMIT 1", a.id)
     if (last?.text("status") == "pending")
         conflict("PENDING_REVIEW", "A version is already awaiting review.")
+    if (edit && a.status != "published" || !edit && a.status !in setOf("draft", "returned"))
+        conflict("NOT_EDITABLE", "This activity cannot be submitted in its current state.")
     val fields = validFields(proposed)
     if (edit) {
         val allowed = setOf("location", "capacity", "registrationDeadline", "startsAt")

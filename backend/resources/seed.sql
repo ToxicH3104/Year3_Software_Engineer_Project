@@ -1,11 +1,20 @@
 INSERT OR IGNORE INTO users(userId,universityId,displayName,role) VALUES
 ('s1','S001','Yiming Chen','student'),('s2','S002','Lin Wang','student'),('s3','S003','Lin Wang','student'),
-('o1','O001','Jiaxin Liu','organiser'),('o2','O002','Zihan Huang','organiser'),
+('o1','O001','Jiaxin Liu','student'),('o2','O002','Zihan Huang','student'),
 ('t1','T001','Qian Zhou','teacher'),('t2','T002','Min Li','teacher');
+
+-- Existing organiser accounts keep their IDs, sessions and club grants.
+UPDATE users SET role='student' WHERE role='organiser';
 
 INSERT OR IGNORE INTO clubs VALUES ('guitar','Guitar Club'),('acm','ACM Club');
 
 INSERT OR IGNORE INTO club_roles VALUES ('guitar','s1','member'),('acm','s2','member'),('guitar','o1','organiser'),('acm','o2','organiser'),('guitar','t1','teacher'),('acm','t2','teacher');
+
+INSERT INTO organiser_grants(clubId,userId,grantedBy,grantedAt,reason)
+SELECT cr.clubId,cr.userId,NULL,strftime('%Y-%m-%dT%H:%M:%fZ','now'),'System-provisioned demo club organiser.'
+FROM club_roles cr
+WHERE cr.relation='organiser' AND (cr.clubId,cr.userId) IN (('guitar','o1'),('acm','o2'))
+AND NOT EXISTS (SELECT 1 FROM organiser_grants g WHERE g.clubId=cr.clubId AND g.userId=cr.userId);
 
 INSERT OR IGNORE INTO demo_credentials VALUES
 ('s1','895ce4458dc915eb7bcf86a06b86e56c','942deb0125b3f37c50a9115e0aec140e9a14930942fc6f26855c30227b3f4ee1'),
