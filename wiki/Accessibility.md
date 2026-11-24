@@ -51,8 +51,15 @@ A SPA loses the browser's built-in page-change behaviour, so it has to be rebuil
 | Skip link, landmarks, main focus, `document.title` | `frontend/src/main.tsx` |
 | Field with visible label, error tied by `aria-describedby`, `aria-invalid` | `frontend/src/shared.tsx`, `main.tsx` |
 | `role="alert"` for errors and flash messages | `frontend/src/shared.tsx` |
+| Date/time input: real `<label>`, `aria-invalid`, `aria-describedby`, a labelled calendar button, and a text time field | `frontend/src/CalendarField.tsx` |
 | Search, club and date filters with `aria-label` | `frontend/src/pages/Board.tsx` |
 | Design tokens for colour, type, spacing, radius and focus ring | `frontend/src/style.css` (Tailwind theme) |
+
+`CalendarField` deserves a note, because a date picker is the easiest place to lose accessibility.
+It keeps a real visible `<label>`, mirrors the value into a text input that a keyboard and a screen
+reader can drive, labels the pop-up calendar with the field's name, exposes `aria-expanded` on the
+trigger, and hides the library's own input from the accessibility tree with `aria-hidden` and
+`tabIndex={-1}` so it is not a silent duplicate tab stop.
 
 ## 5. Known gaps
 

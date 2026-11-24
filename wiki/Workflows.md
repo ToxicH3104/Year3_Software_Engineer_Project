@@ -117,7 +117,7 @@ sequenceDiagram
     API->>API: file a review item (kind = edit)
     Note over API: approved version stays live<br/>students still see the old time
     T->>API: GET /teacher/reviews
-    API-->>T: canApprove = false when the new start is < 24 h away
+    API-->>T: reviewDeadline = new start - 24 h, isUrgent within 48 h
     alt teacher approves in time
         T->>API: POST /teacher/reviews/{id}/decision {approve}
         API->>API: apply the new fields
@@ -141,8 +141,8 @@ sequenceDiagram
 |---|---|---|
 | Which fields need review? | **Content** — title, introduction, requirements, visibility (B26) | Only `location`, `capacity`, `registrationDeadline`, `startsAt` are accepted; content fields are refused |
 | Does a start-time change need review? | No — takes effect at once (B30) | Yes — filed as an `edit` review item |
-| 48 h cutoff (B34) | Refuse later than 48 h before the earlier of old and new start | Not implemented |
-| 24 h approval block (B34) | Refuse approving inside 24 h of the new start | Implemented — `TOO_CLOSE_TO_START` |
+| 48 h cutoff (B34) | Refuse later than 48 h before the earlier of old and new start | Still not implemented |
+| 24 h approval block (B34) | Refuse approving inside 24 h of the new start | **Implemented indirectly** — an edit's review deadline *is* start − 24 h, so approving late fails with `REVIEW_EXPIRED` |
 
 The practical consequences, and they are serious:
 
@@ -161,8 +161,8 @@ This is the most consequential divergence in the project, and it is written up o
 flowchart LR
     T["every 15 s"] --> P["processDue()"]
     R["before every API request"] --> P
-    P --> A["release reserved bookings<br/>past reservationDeadline"]
-    P --> B["send reminders<br/>whose reminderAt has passed"]
+    P --> A["processDueBookings()<br/>release reserved bookings, send reminders"]
+    P --> B["expireOverdueReviews()<br/>return reviews past their deadline"]
     A --> N["write a notice"]
     B --> N
 ```
@@ -171,8 +171,10 @@ Running `processDue()` **inside each request's transaction** is what makes deadl
 downtime: after a restart, the first request to arrive applies everything that fell due while the
 server was off, before it answers.
 
-The worker deliberately does **not** handle overdue reviews, even though design decision 12 says it
-should. `processDue()` covers reservations and reminders only; `B46` is not implemented. See
+Since the deadlines commit, `processDue()` is a thin coordinator in `Deadlines.kt` that calls
+`processDueBookings()` and `expireOverdueReviews()`. Overdue reviews are therefore returned by the
+system, with a system reason, without a teacher acting — which is what design decision 12 and B46
+ask for. See
 [Design Decisions](Design-Decisions#2-reconciliation--design-versus-code).
 
 ## 7. Cancellation

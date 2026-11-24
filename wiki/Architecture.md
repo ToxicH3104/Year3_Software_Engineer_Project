@@ -32,9 +32,11 @@ student side is phone-first and highly interactive: registration states, live pl
 reminders and confirmation dialogs. A React SPA models that better, and a JSON API keeps the three
 role interfaces independent.
 
-The consequence that matters: **`docs/api-contract.md`-style discipline is mandatory**. The API is
-the only contract between the two halves, so it is documented on [API Reference](API-Reference) and
-the frontend reaches it through exactly one module.
+The consequence that matters: **the API contract has to be written down and kept current**. It is
+the only agreement between the two halves. It lives in
+[`docs/api-contract.md`](https://github.com/ToxicH3104/Year3_Software_Engineer_Project/blob/main/docs/api-contract.md),
+is expanded here on [API Reference](API-Reference), and the frontend reaches it through exactly one
+module.
 
 ## 3. Backend layout
 
@@ -43,19 +45,20 @@ backend/
 ├── module.yaml              dependencies, main class (Amper build)
 ├── kotlin / kotlin.bat      bundled toolchain wrapper — no hand-written Gradle
 ├── resources/
-│   ├── schema.sql           eight tables, three indexes, one trigger
+│   ├── schema.sql           eight tables, one view, three indexes, one trigger
 │   ├── seed.sql             clubs, demo accounts, club roles
 │   └── logback.xml
 ├── src/campus/
 │   ├── Application.kt       installs plugins, mounts /api, starts the worker
+│   ├── Deadlines.kt         processDue(): the coordinator the worker and every request call
 │   ├── auth/                login, sessions, role and club permission checks
 │   ├── student/             routes and service for browsing and booking
 │   ├── organiser/           routes and service for creating and managing activities
 │   ├── teacher/             routes and service for the review queue and clubs
-│   ├── activities/          shared rules: fields, capacity, time, cancellation, due work
+│   ├── activities/          shared rules: fields, capacity, time, cancellation, due bookings
 │   ├── db/                  JDBC transactions, schema loading
 │   └── http/                JSON replies, error mapping, request helpers
-└── test/WorkflowTest.kt     seven end-to-end API scenarios
+└── test/WorkflowTest.kt     eleven end-to-end API scenarios
 ```
 
 ### Request path
@@ -87,6 +90,11 @@ Two things are worth noticing:
    before the service function is reached. Hiding a button in React is presentation, not access
    control.
 
+A third detail that is easy to miss: the transaction wraps the handler in a `SAVEPOINT` and rolls
+back to it when the handler throws a business error. Due work done by `processDue()` is therefore
+**kept even when the request fails** — a rejected cancellation does not undo a reservation that
+expired a moment earlier.
+
 ### Plugins
 
 Ktor is configured in small `configure*`-style blocks rather than one long `Application.module`:
@@ -107,6 +115,7 @@ frontend/
 └── src/
     ├── main.tsx          router, layout, route guards
     ├── shared.tsx        reusable pieces: field, status badge, empty state, flash
+    ├── CalendarField.tsx date/time input (flatpickr) with keyboard and label support
     ├── style.css         Tailwind entry and design tokens
     ├── api/index.ts      ← the only module that calls the backend
     └── pages/
@@ -156,12 +165,17 @@ interfaces visually consistent and makes the contrast requirement (4.5:1) checka
 
 | Layer | Tool | What it covers |
 |---|---|---|
-| Backend | Kotest `FreeSpec` + Ktor `testApplication` | Seven end-to-end scenarios against a temporary SQLite file |
+| Backend | Kotest `FreeSpec` + Ktor `testApplication` | Eleven end-to-end scenarios against a temporary SQLite file |
 | Frontend | `tsc --noEmit` + `vite build` | Type correctness and a production build |
 
 The backend tests are deliberately scenario-shaped rather than unit-shaped, because the rules that
 matter (the last place, the review window, reservation expiry) only exist once several services and
 the database are in play. A `TestClock` lets a scenario jump to 2030 and assert that a deadline
 really fires.
+
+Four of the scenarios were added with the deadlines commit: legacy sessions and bookings surviving a
+restart, only the first decision on a shared submission counting, the shared queue ordering urgent
+deadlines first, and a review being returned even when the first API call fails. That last one is
+what proves the `SAVEPOINT` behaviour above.
 
 The scenarios are listed on [Setup and Run](Setup-and-Run#6-tests).

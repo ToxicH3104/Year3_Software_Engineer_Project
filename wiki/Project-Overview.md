@@ -71,7 +71,7 @@ Scope is expressed in the [backlog](User-Stories-and-Backlog): **54 items, 137 p
 | Payments and paid tickets | Not in the backlog |
 | Administrator screens (US13–US15) | Not in the backlog; roles come from seed data |
 | Club news and announcements (B42–B43) | Lower priority than the activity flow |
-| Real email delivery | The channel is still undecided; notices are in-app |
+| Real email delivery | The team selected in-app notices; no mail is sent |
 
 ## 5. Status workflows at a glance
 

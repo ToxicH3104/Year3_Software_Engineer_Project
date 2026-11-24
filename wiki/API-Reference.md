@@ -10,9 +10,11 @@ token in a header. All error responses share one shape:
 `fields` is present only for validation failures. The client turns this into an `ApiError` with
 `status`, `message` and `fields` (see `frontend/src/api/index.ts`).
 
-> This page is the replacement for the `docs/api-contract.md` that the backend and frontend
-> READMEs both link to. It is written from `backend/src/campus/**/*Routes.kt`, so it describes what
-> the server actually serves.
+> `docs/api-contract.md` is the formal contract inside the repository. This page is the same
+> material expanded for reading — worked examples, the activity and review object shapes, and the
+> reasoning behind each rule. It is written from `backend/src/campus/**/*Routes.kt` and the
+> `review_requests` view, so it describes what the server actually serves. If the two ever
+> disagree, `docs/api-contract.md` is the one the code is held to.
 
 ## 1. Authentication
 
@@ -136,12 +138,20 @@ returns `422` with "Change the venue, time, capacity or deadline."
 | `GET` | `/api/teacher/clubs` | The clubs I supervise |
 | `POST` | `/api/teacher/clubs` | `{ clubName }` — create a club; I become its teacher |
 | `GET` | `/api/teacher/clubs/{id}/organisers` | The organiser roster |
-| `GET` | `/api/teacher/clubs/{id}/organisers/candidate?universityId=` | Look up an account to promote |
+| `GET` | `/api/teacher/clubs/{id}/organisers/candidate?universityId=` | Look up a **student** account to promote |
 | `POST` | `/api/teacher/clubs/{id}/organisers` | `{ universityId, reason }` — grant organiser access |
-| `GET` | `/api/teacher/reviews?sort=submitted\|deadline` | Pending queue for **my** clubs |
-| `GET` | `/api/teacher/reviews/{id}` | One review, with the diff and `canApprove` |
+| `GET` | `/api/teacher/reviews` | The pending queue — **one queue for all teachers** |
+| `GET` | `/api/teacher/reviews/{id}` | One review, with the diff, `reviewDeadline`, `isUrgent` and `canApprove` |
 | `POST` | `/api/teacher/reviews/{id}/decision` | `{ decision: "approve"\|"return", reason }` |
-| `GET` | `/api/teacher/history` | Reviews I have decided |
+| `GET` | `/api/teacher/history` | Every decided review, mine and the system's, newest first |
+
+`GET /api/teacher/reviews` takes **no query parameters**. Ordering is fixed:
+
+1. Requests whose `reviewDeadline` falls inside the next 48 h come first, earliest deadline first.
+2. Everything else follows in submission order.
+
+There is no `?sort=` parameter any more, and no club scoping: every teacher sees every club's
+pending submissions, which is design decision 2.
 
 ### The review object
 
@@ -149,6 +159,7 @@ returns `422` with "Change the venue, time, capacity or deadline."
 {
   "reviewId": "rev_12",
   "activityId": "act_7f3a",
+  "clubId": "guitar",
   "clubName": "Guitar Club",
   "title": "Open rehearsal",
   "version": 2,
@@ -156,22 +167,27 @@ returns `422` with "Change the venue, time, capacity or deadline."
   "status": "pending",
   "submittedBy": "Jiaxin Liu",
   "submittedAt": "2030-05-01T09:00:00Z",
+  "reviewDeadline": "2030-05-04T12:00:00Z",
+  "isUrgent": false,
   "proposed": { "...": "the submitted fields" },
+  "approved": { "...": "the last approved fields, for an edit" },
   "previous": { "...": "the baseline fields" },
   "changedFields": ["location", "startsAt"],
-  "previousFeedback": { "reason": "Add the room number." },
+  "previousFeedback": { "reason": "Add the room number.", "decidedAt": "..." },
   "isTimeChange": true,
-  "canApprove": false,
-  "blockReason": "TOO_CLOSE_TO_START",
+  "canApprove": true,
   "decision": null
 }
 ```
 
 - `kind` is `new` or `edit`.
-- `canApprove` is computed on the server; when it is `false`, `blockReason` explains why and the
-  interface must disable the approve button.
-- The only current `blockReason` is `TOO_CLOSE_TO_START`: a **time change** whose new start is less
-  than 24 h away. Approving anyway returns `409 TOO_CLOSE_TO_START`.
+- `reviewDeadline` is computed by the `review_requests` view: **start − 12 h** for a new activity,
+  **start − 24 h** for an edit. It never consults the registration deadline.
+- `isUrgent` is true when the deadline is still ahead but inside the 48 h window.
+- `canApprove` is true while the review is pending and its deadline has not passed. It does **not**
+  depend on the activity's type — there is no longer a separate "too close to start" block.
+- `decision.reviewerName` is `"System"` when the deadline returned it automatically, and
+  `reviewerId` is then `null`.
 
 ### What approval does
 
@@ -199,17 +215,20 @@ Every decision stores `reviewerId`, `decidedAt`, `reason` and the version it app
 | `CANCELLED` | 409 | The activity was cancelled |
 | `TOO_LATE` | 409 | Cancelling inside 24 h of the start |
 | `ALREADY_DECIDED` | 409 | This review is no longer pending |
+| `REVIEW_EXPIRED` | 409 | The review deadline passed before the teacher decided |
 | `PENDING_REVIEW` | 409 | A version is already awaiting review |
 | `NOT_EDITABLE` | 409 | The activity's status forbids this edit |
 | `NOT_CONFIRMED` | 409 | A reminder needs a confirmed booking |
 | `NOT_RESERVED` | 409 | Nothing to confirm or decline |
-| `TOO_CLOSE_TO_START` | 409 | Approving a time change inside 24 h of the new start |
 | `ORGANISER_LIMIT` | 409 | The club already has three organisers |
-| `NO_ELIGIBLE_ACCOUNT` | 422 | No active account for that university ID |
+| `NO_ELIGIBLE_ACCOUNT` | 404 | No active **student** account for that university ID |
 | `REASON_REQUIRED` | 422 | Returning a review, or granting access, needs a reason |
 | `VALIDATION_FAILED` | 422 | Field errors in `fields` |
 | `INVALID_REMINDER_TIME` | 422 | The reminder is not in the future and before the start |
 | `BAD_REQUEST` | 400 | Malformed JSON or a missing path parameter |
+
+> `TOO_CLOSE_TO_START` is gone. Approving too late is now caught by the review deadline itself:
+> an edit's deadline is start − 24 h, so approving inside 24 h fails with `REVIEW_EXPIRED`.
 
 ## 6. Integration flow
 

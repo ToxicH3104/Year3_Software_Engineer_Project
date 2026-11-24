@@ -1,6 +1,6 @@
 # Database Design
 
-One SQLite file, eight tables, three indexes and one trigger. The schema lives in
+One SQLite file: eight tables, one view, three indexes and one trigger. The schema lives in
 `backend/resources/schema.sql` and is applied on start-up; `seed.sql` adds the demo clubs,
 accounts and club roles.
 
@@ -208,6 +208,34 @@ Salt and digest only, never a password. `PBKDF2WithHmacSHA256`, 120 000 iteratio
 
 The name is honest: this is a **simulated** identity service for coursework. A real deployment
 would delegate to the university's SSO and this table would not exist.
+
+### The `review_requests` view
+
+Not a table, but the most interesting object in the schema:
+
+```sql
+CREATE VIEW IF NOT EXISTS review_requests AS
+SELECT r.*, r.rowid AS queueOrder,
+       strftime('%Y-%m-%dT%H:%M:%fZ', json_extract(r.proposed,'$.startsAt'),
+           CASE r.kind WHEN 'edit' THEN '-24 hours' ELSE '-12 hours' END) AS reviewDeadline
+FROM reviews r;
+```
+
+It exists so that **the review deadline can be computed in SQL** rather than in Kotlin. That
+matters for two reasons:
+
+1. **The queue can be ordered by it.** `reviewList()` sorts by `reviewDeadline` inside the query, so
+   the urgent-first ordering that design decision 8 asks for is a plain `ORDER BY` rather than a
+   sort in application memory across every pending row.
+2. **Nothing can go stale.** It is derived from `proposed.startsAt` on every read, which is exactly
+   what design decision 9 means by "worked out from the current times, never stored". If a start
+   time changes, the deadline changes with it, with no migration and no cache to invalidate.
+
+`queueOrder` is `r.rowid`, a stable tie-breaker so two submissions in the same second keep a
+deterministic order.
+
+The formula itself does **not** match design decision 9 — see
+[Design Decisions](Design-Decisions#2-reconciliation--design-versus-code).
 
 ## 3. Indexes
 

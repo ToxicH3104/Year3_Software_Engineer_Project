@@ -108,16 +108,20 @@ cd backend
 ./kotlin test
 ```
 
-Seven end-to-end scenarios run against a temporary SQLite file with a controllable clock:
+Eleven end-to-end scenarios run against a temporary SQLite file with a controllable clock:
 
 | Scenario | Covers |
 |---|---|
 | Teachers create clubs, appoint organisers and review the new club's activities | B6, B11, B12, B44; role checks; duplicate club names |
 | Club teachers grant organiser access without replacing a student's account | B6; idempotent grants; the three-organiser cap |
 | Student signup starts a session, keeps IDs unique and grants only student access | B4, B51; case-insensitive IDs; role escalation refused |
-| Unpublished versions stay private, decisions are scoped and linked to their snapshots | B5, B11, B27; another club's teacher is refused |
+| Unpublished versions stay private and teachers share reviews linked to their snapshots | B5, B11, B27; the shared queue; decisions tied to the version |
 | The last place is atomic, repeats are idempotent, cancellation releases the place | B17, B18, B21, B22; concurrent booking |
 | Time changes reserve places, enforce the approval window, and expire unconfirmed places | B30, B32, B34, B35 |
+| Legacy organiser sessions, bookings and pending reviews survive a restart | B52; `processDue()` after downtime |
+| Only the first decision on a shared submission is recorded | B47, B12; `ALREADY_DECIDED` |
+| The shared queue orders urgent deadlines first and other requests in submission order | B45; `isUrgent`, `reviewDeadline` |
+| Crossing a review cutoff returns the request even if the first API call fails | B46; `expireOverdueReviews()`; the `SAVEPOINT` |
 | Club access, reminder delivery, registration cutoff and sign out | B7, B36, B37, B17 |
 
 ### Frontend

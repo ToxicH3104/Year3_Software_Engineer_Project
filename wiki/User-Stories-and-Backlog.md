@@ -126,10 +126,10 @@ Not every backlog item is built. This table says which, and why.
 
 | Status | Items |
 |---|---|
-| **Built** | B1–B5, B8–B12, B14–B20, B22–B25, B27, B28, B29, B31, B32, B35, B36, B37, B44, B47, B50–B52 |
-| **Built, but not as the backlog describes** | B21 (24 h limit, backlog says any time before the start) · B26/B39/B40/B41 (these changes go through review instead of taking effect at once) · B30 (needs review) · B34 (only the 24 h approval block; no 48 h cutoff) |
-| **Partly built** | B13 (a returned activity can be edited and resubmitted, but the earlier reason is not shown beside the form) · B45 (sorting works; the 48 h urgency window does not) · B48/B49 (implemented per page, never audited) |
-| **Not built** | B6 is built, but **content fields cannot be changed at all** once published — see below · B33 (a released reservation sends no notice) · B38 · B42 · B43 · B46 · B53 · B54 |
+| **Built** | B1–B5, B8–B12, B14–B20, B22–B25, B27, B28, B29, B31, B32, B35, B36, B37, B44, B45, B46, B47, B50–B52 |
+| **Built, but not as the backlog describes** | B21 (24 h limit, backlog says any time before the start) · B26/B39/B40/B41 (these changes go through review instead of taking effect at once) · B30 (needs review) · B34 (only the 24 h approval block; no 48 h cutoff) · B6 (works, but a teacher grants it — there is no student-facing request) |
+| **Partly built** | B13 (a returned activity can be edited and resubmitted, but the earlier reason is not shown beside the form) · B48/B49 (implemented per page, never audited) |
+| **Not built** | B33 (a released reservation sends no notice) · B38 · B42 · B43 · B53 · B54 · **content fields cannot be changed at all** once published — see below |
 
 ### The B26 problem
 
@@ -145,6 +145,17 @@ design decision 5 says should take effect **without** review. The two are effect
 
 The detailed, item-by-item comparison of design versus code is on
 [Design Decisions](Design-Decisions#2-reconciliation--design-versus-code).
+
+### Fixed since the first draft of this page
+
+An earlier revision of this wiki listed B45 and B46 as missing. The `fa82caa` commit ("Share club
+reviews, enforce deadlines and localise campus calendars") added a `review_requests` view with a
+computed `reviewDeadline`, an `isUrgent` flag, urgent-first ordering, and `expireOverdueReviews()`.
+It also removed the per-club scoping from the review queue, so every teacher now sees every club —
+which is what design decision 2 says.
+
+The [Revision Log](Revision-Log) records this as a resolved conflict rather than quietly editing the
+old claim away.
 
 ## 6. Specification coverage
 
