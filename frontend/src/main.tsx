@@ -14,6 +14,7 @@ import {
 import {
   ArrowRight,
   BookOpen,
+  Contrast,
   GraduationCap,
   LogOut,
   Music2,
@@ -31,6 +32,7 @@ import {
   useSession,
 } from "./shared";
 import Board from "./pages/Board";
+import { Inbox, InboxLink } from "./pages/Inbox";
 import { ActivityDetail, BookingDetail, Registrations } from "./pages/Student";
 import {
   ActivityForm,
@@ -190,7 +192,7 @@ function AccountForm({ signup = false }: { signup?: boolean }) {
     </div>
   );
 }
-function Gate({ role, children }: { role: Role; children: ReactNode }) {
+function Gate({ role, children }: { role?: Role; children: ReactNode }) {
   const { user } = useSession(),
     loc = useLocation();
   if (!user)
@@ -200,7 +202,7 @@ function Gate({ role, children }: { role: Role; children: ReactNode }) {
         to={"/login?next=" + encodeURIComponent(loc.pathname + loc.search)}
       />
     );
-  return hasRole(user, role) ? (
+  return !role || hasRole(user, role) ? (
     children
   ) : (
     <>
@@ -214,6 +216,36 @@ function Gate({ role, children }: { role: Role; children: ReactNode }) {
     </>
   );
 }
+function ContrastToggle() {
+  const [high, setHigh] = useState(() => {
+    try {
+      const saved = localStorage.getItem("campus-high-contrast");
+      if (saved !== null) return saved === "true";
+    } catch {
+      /* The preference still works for this visit. */
+    }
+    return window.matchMedia("(prefers-contrast: more)").matches;
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle("high-contrast", high);
+  }, [high]);
+  return (
+    <button
+      className="btn contrast-toggle"
+      aria-pressed={high}
+      onClick={() => {
+        setHigh(!high);
+        try {
+          localStorage.setItem("campus-high-contrast", String(!high));
+        } catch {
+          /* Storage is optional. */
+        }
+      }}
+    >
+      <Contrast size={16} aria-hidden="true" /> High contrast
+    </button>
+  );
+}
 function App() {
   const [user, setUser] = useState<User | null>(null),
     [ready, setReady] = useState(false),
@@ -221,7 +253,8 @@ function App() {
     act = useAction(),
     loc = useLocation(),
     nav = useNavigate(),
-    main = useRef<HTMLElement>(null);
+    main = useRef<HTMLElement>(null),
+    [inboxRevision, setInboxRevision] = useState(0);
   useEffect(() => {
     api<User>("/me")
       .then(setUser)
@@ -273,7 +306,8 @@ function App() {
           <div className="account">
             {user ? (
               <>
-                <span>{user.displayName}</span>
+                <InboxLink key={user.userId} revision={inboxRevision} />
+                <span className="account-name">{user.displayName}</span>
                 <button
                   className="icon-btn"
                   aria-label="Sign out"
@@ -307,6 +341,17 @@ function App() {
           <Routes key={user?.userId || "visitor"}>
             <Route path="/" element={<Navigate to="/activities" replace />} />
             <Route path="/activities" element={<Board />} />
+            <Route
+              path="/inbox"
+              element={
+                <Gate>
+                  <Inbox
+                    revision={inboxRevision}
+                    onRead={() => setInboxRevision((r) => r + 1)}
+                  />
+                </Gate>
+              }
+            />
             <Route path="/activities/:id" element={<ActivityDetail />} />
             <Route path="/login" element={<AccountForm key="login" />} />
             <Route
@@ -424,6 +469,7 @@ function App() {
       <footer className="footer">
         <div>
           <Brand />
+          <ContrastToggle />
           <span>University of Leeds</span>
         </div>
       </footer>

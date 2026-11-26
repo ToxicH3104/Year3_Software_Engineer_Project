@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import flatpickr from "flatpickr";
 import type { Instance } from "flatpickr/dist/types/instance";
 import { CalendarDays } from "lucide-react";
-import { isCalendarDay, localInput } from "./shared";
+import { isCalendarDay, localInput, normalizeClock } from "./shared";
 
 interface Props {
   id: string;
@@ -11,6 +11,7 @@ interface Props {
   onChange: (value: string) => void;
   withTime?: boolean;
   invalid?: boolean;
+  onDateBlur?: () => void;
 }
 
 export function CalendarField({
@@ -20,6 +21,7 @@ export function CalendarField({
   onChange,
   withTime,
   invalid,
+  onDateBlur,
 }: Props) {
   const [day, clock = ""] = withTime ? value.split("T") : [value];
   const dateInput = useRef<HTMLInputElement>(null);
@@ -38,6 +40,7 @@ export function CalendarField({
     const input = dateInput.current!;
     const calendar = flatpickr(calendarInput.current!, {
       dateFormat: "Y-m-d",
+      animate: false,
       locale: { ...flatpickr.l10ns.en, firstDayOfWeek: 1 },
       disableMobile: true,
       clickOpens: false,
@@ -54,7 +57,10 @@ export function CalendarField({
     });
     calendar.calendarContainer.id = id + "-calendar";
     calendar.calendarContainer.setAttribute("role", "dialog");
-    calendar.calendarContainer.setAttribute("aria-label", "Calendar for " + label);
+    calendar.calendarContainer.setAttribute(
+      "aria-label",
+      "Calendar for " + label,
+    );
     picker.current = calendar;
     return () => {
       calendar.destroy();
@@ -91,6 +97,7 @@ export function CalendarField({
           maxLength={10}
           value={day}
           onChange={(e) => changeDay(e.target.value)}
+          onBlur={onDateBlur}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();
@@ -118,13 +125,18 @@ export function CalendarField({
           aria-label={label + " (24-hour time)"}
           aria-invalid={invalid}
           aria-describedby={invalid ? id + "-error" : undefined}
-          placeholder="HH:mm"
+          placeholder="7 or 7:30"
           autoComplete="off"
-          maxLength={5}
           value={clock}
           onChange={(e) =>
             onChange(day || e.target.value ? day + "T" + e.target.value : "")
           }
+          onBlur={() => {
+            const normalized = normalizeClock(clock);
+            if (normalized !== null && normalized !== clock) {
+              onChange(day + "T" + normalized);
+            }
+          }}
         />
       )}
     </span>

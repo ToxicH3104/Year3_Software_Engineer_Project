@@ -54,7 +54,7 @@ export function OrganiserHome() {
             >
               <div>
                 <small>{a.clubName}</small>
-                <h3>{a.title || "Untitled draft"}</h3>
+                <h2>{a.title || "Untitled draft"}</h2>
                 <p>
                   {moment(a.startsAt)} · {a.location || "Venue pending"}
                 </p>
@@ -371,6 +371,7 @@ function Editor({ clubs, a }: { clubs: Club[]; a?: Activity }) {
       />
       <form className="panel form editor" onSubmit={save} noValidate>
         {act.feedback}
+        <p className="muted">Use YYYY-MM-DD for dates and Shanghai time, for example 7 or 7:30.</p>
         <Field label="Club">
           {(id) => (
             <select

@@ -50,10 +50,18 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
       />
       <div className="between tools">
         <div className="tabs">
-          <Link className={!history ? "on" : ""} to="/teacher/reviews">
+          <Link
+            className={!history ? "on" : ""}
+            aria-current={!history ? "page" : undefined}
+            to="/teacher/reviews"
+          >
             Pending
           </Link>
-          <Link className={history ? "on" : ""} to="/teacher/history">
+          <Link
+            className={history ? "on" : ""}
+            aria-current={history ? "page" : undefined}
+            to="/teacher/history"
+          >
             History
           </Link>
         </div>
@@ -82,7 +90,7 @@ export function TeacherHome({ history = false }: { history?: boolean }) {
                   {r.kind === "edit" ? "Proposed edit" : "New activity"} · v
                   {r.version}
                 </small>
-                <h3>{r.title}</h3>
+                <h2>{r.title}</h2>
                 <p>
                   {history && r.decision
                     ? (r.status === "returned"

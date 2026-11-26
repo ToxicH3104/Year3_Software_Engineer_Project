@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, Bell, CalendarCheck } from "lucide-react";
-import {
-  api,
-  hasRole,
-  useData,
-  type Activity,
-  type Booking,
-  type Notice,
-} from "../api";
+import { api, hasRole, useData, type Activity, type Booking } from "../api";
 import { CalendarField } from "../CalendarField";
 import {
   Art,
@@ -114,13 +107,17 @@ export function ActivityDetail({ register = false }: { register?: boolean }) {
 }
 
 export function Registrations() {
-  const { data, error } = useData<Booking[]>("/my/registrations"),
-    notices = useData<Notice[]>("/my/notices");
+  const { data, error } = useData<Booking[]>("/my/registrations");
   return (
     <>
       <Heading
         title="My registrations"
-        sub="Your bookings, reminders and club notices."
+        sub="Your bookings and activity reminders."
+        action={
+          <Link className="btn" to="/inbox">
+            View inbox
+          </Link>
+        }
       />
       {!data ? (
         <Load error={error} />
@@ -138,7 +135,7 @@ export function Registrations() {
             >
               <div>
                 <small>{b.activity.clubName}</small>
-                <h3>{b.activity.title}</h3>
+                <h2>{b.activity.title}</h2>
                 <p>
                   {moment(b.activity.startsAt)} · {b.activity.location}
                 </p>
@@ -148,26 +145,6 @@ export function Registrations() {
             </Link>
           ))}
         </div>
-      )}
-      {notices.error && <Load error={notices.error} />}
-      {Boolean(notices.data?.length) && (
-        <section className="section">
-          <h2>
-            <Bell size={19} /> Notices
-          </h2>
-          {notices.data?.map((n) => (
-            <div className="list-item" key={n.noticeId}>
-              <strong>
-                {
-                  data?.find((x) => x.activity.activityId === n.activityId)
-                    ?.activity.title
-                }
-              </strong>
-              <p>{n.message}</p>
-              <small>{moment(n.createdAt)}</small>
-            </div>
-          ))}
-        </section>
       )}
     </>
   );
@@ -195,7 +172,7 @@ export function BookingDetail() {
       <Back to="/my/registrations">My registrations</Back>
       <Heading title={a.title || "My booking"} sub={a.clubName} />
       {loc.state?.registered && b.status === "confirmed" && (
-        <p className="notice">
+        <p className="notice" role="status">
           <CalendarCheck size={18} />
           You are registered.
         </p>
@@ -238,28 +215,27 @@ export function BookingDetail() {
           )}
           {b.status === "confirmed" &&
             (new Date(a.startsAt!).getTime() - Date.now() >= 86400000 ? (
-              cancel ? (
-                <div className="actions">
-                  <span>Release your place?</span>
-                  <button
-                    className="btn danger"
-                    disabled={act.busy}
-                    onClick={() => change("/cancel")}
-                  >
-                    Yes, cancel booking
-                  </button>
-                  <button className="btn" onClick={() => setCancel(false)}>
-                    Keep booking
-                  </button>
-                </div>
-              ) : (
+              <div className="actions">
                 <button
-                  className="textbtn danger"
-                  onClick={() => setCancel(true)}
+                  className={cancel ? "btn" : "textbtn danger"}
+                  aria-expanded={cancel}
+                  onClick={() => setCancel(!cancel)}
                 >
-                  Cancel registration
+                  {cancel ? "Keep booking" : "Cancel registration"}
                 </button>
-              )
+                {cancel && (
+                  <>
+                    <span>Release your place?</span>
+                    <button
+                      className="btn danger"
+                      disabled={act.busy}
+                      onClick={() => change("/cancel")}
+                    >
+                      Yes, cancel booking
+                    </button>
+                  </>
+                )}
+              </div>
             ) : (
               <p className="muted">
                 The 24-hour cancellation window has closed.

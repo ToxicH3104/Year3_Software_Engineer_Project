@@ -32,7 +32,12 @@ export default function Board() {
     day = params.get("date") || "";
   const [showDate, setShowDate] = useState(Boolean(day));
   const [dateDraft, setDateDraft] = useState(day);
-  const invalidDate = dateDraft.length === 10 && !isCalendarDay(dateDraft);
+  const [dateBlurred, setDateBlurred] = useState(false);
+  const validDay = isCalendarDay(day) ? day : "";
+  const invalidDate =
+    !!dateDraft &&
+    !isCalendarDay(dateDraft) &&
+    (dateBlurred || dateDraft.length === 10);
   const dateId = useId();
   useEffect(() => setDateDraft(day), [day]);
   const set = (k: string, v: string) => {
@@ -46,7 +51,7 @@ export default function Board() {
     (a) =>
       (a.title || "").toLowerCase().includes(q.trim().toLowerCase()) &&
       (!club || a.clubId === club) &&
-      (!day || localInput(a.startsAt).slice(0, 10) === day),
+      (!validDay || localInput(a.startsAt).slice(0, 10) === validDay),
   );
   const featured = !filtered
     ? (list.find((a) => a.registrationState === "open") ?? list[0])
@@ -85,7 +90,8 @@ export default function Board() {
               className="btn light"
               to={"/activities/" + featured.activityId}
             >
-              View activity <ArrowRight size={16} />
+              View activity<span className="sr-only">: {featured.title}</span>{" "}
+              <ArrowRight size={16} />
             </Link>
           </div>
           <div className="feature-img">
@@ -94,6 +100,9 @@ export default function Board() {
         </section>
       )}
       <section className="board-section">
+        <span className="sr-only" role="status">
+          {data ? `${list.length} activities found.` : ""}
+        </span>
         <div className="section-top">
           <h2>
             {filtered ? "Search results" : "All activities"}{" "}
@@ -129,7 +138,11 @@ export default function Board() {
               aria-label="Filter by date"
               title="Filter by date"
               aria-expanded={showDate}
-              onClick={() => setShowDate(!showDate)}
+              onClick={() => {
+                setShowDate(!showDate);
+                setDateDraft(day);
+                setDateBlurred(false);
+              }}
             >
               <CalendarDays size={17} />
             </button>
@@ -145,23 +158,35 @@ export default function Board() {
                   label="Activity date"
                   value={dateDraft}
                   invalid={invalidDate}
+                  onDateBlur={() => setDateBlurred(true)}
                   onChange={(value) => {
                     setDateDraft(value);
+                    setDateBlurred(false);
                     if (!value || isCalendarDay(value)) set("date", value);
                   }}
                 />
                 {invalidDate && (
-                  <small className="fielderr" id={dateId + "-error"}>
-                    Enter a valid date as YYYY-MM-DD.
+                  <small
+                    className="fielderr"
+                    role="status"
+                    id={dateId + "-error"}
+                  >
+                    Enter a full date as YYYY-MM-DD.{" "}
+                    {validDay
+                      ? "Showing activities for " + validDay + "."
+                      : "Showing all dates."}
                   </small>
                 )}
               </>
             )}
-            {filtered && (
+            {!showDate && validDay && <span>Activity date: {validDay}</span>}
+            {(filtered || dateDraft) && (
               <button
                 className="textbtn"
                 onClick={() => {
                   setParams({});
+                  setDateDraft("");
+                  setDateBlurred(false);
                   setShowDate(false);
                 }}
               >

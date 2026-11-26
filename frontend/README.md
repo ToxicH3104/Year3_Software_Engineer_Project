@@ -31,7 +31,7 @@ The sign-in screen also includes local demo accounts for a student (S001), a Gui
 ## Try the workflow
 
 1. Explore the activity board. Search by activity title, select a club, or choose a date.
-2. Open an activity, sign in as a student and confirm registration. My registrations shows the booking, change notices, reminders and cancellation options.
+2. Open an activity, sign in as a student and confirm registration. My registrations shows the booking, reminder settings and cancellation options. The envelope in the header opens the inbox, with an unread count and links to the affected booking or organiser activity. High contrast can be toggled in the footer.
 3. Sign in as an organiser to create a draft and submit it for review. Sign in as a teacher to approve it or return it with feedback. An approved activity then appears on the board.
 4. Open a published activity as an organiser to view participants, download its QR code, propose changes or cancel. Students with a reserved place after a time change can confirm or decline in My registrations.
 

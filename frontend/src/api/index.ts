@@ -81,9 +81,13 @@ export interface Participant {
 }
 export interface Notice {
   noticeId: string;
+  type: string;
   message: string;
   createdAt: string;
   activityId: string;
+  activityTitle: string | null;
+  registrationId: string | null;
+  readAt: string | null;
 }
 export class ApiError extends Error {
   constructor(
@@ -115,11 +119,16 @@ export async function api<T>(
     );
   return data as T;
 }
-export function useData<T>(path: string, refresh = 0, pollMs = 0) {
+export function useData<T>(
+  path: string,
+  refresh = 0,
+  pollMs = 0,
+  retainOnRefresh = false,
+) {
   const [state, set] = useState<{ key: string; data?: T; error?: string }>({
     key: "",
   });
-  const key = path + "#" + refresh;
+  const key = retainOnRefresh ? path : path + "#" + refresh;
   useEffect(() => {
     const c = new AbortController();
     let timer: number;
@@ -143,6 +152,6 @@ export function useData<T>(path: string, refresh = 0, pollMs = 0) {
       c.abort();
       window.clearTimeout(timer);
     };
-  }, [path, key, pollMs]);
+  }, [path, key, refresh, pollMs]);
   return state.key === key ? state : { key };
 }

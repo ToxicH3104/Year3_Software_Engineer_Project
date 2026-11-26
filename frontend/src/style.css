@@ -22,6 +22,7 @@
   --line: #dce2d9;
   --pine: #244b3c;
   --pale: #e9eee6;
+  --focus: #34559b;
 }
 * {
   box-sizing: border-box;
@@ -60,7 +61,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid #668436;
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 svg {
@@ -441,11 +442,29 @@ small,
 .filterline .calendar-date {
   width: 150px;
 }
-.flatpickr-day.selected,
-.flatpickr-day.selected:hover,
-.flatpickr-day.selected:focus {
+.flatpickr-calendar .flatpickr-day:is(.prevMonthDay, .nextMonthDay) {
+  color: #535e59;
+}
+.flatpickr-calendar .flatpickr-weekday {
+  color: var(--muted);
+}
+.flatpickr-calendar .flatpickr-day.today {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  border-color: var(--pine);
+}
+.flatpickr-calendar .flatpickr-day.today:is(:focus, :hover),
+.flatpickr-calendar .flatpickr-day.selected,
+.flatpickr-calendar
+  .flatpickr-day.selected:is(:focus, :hover, .prevMonthDay, .nextMonthDay) {
   background: var(--pine);
   border-color: var(--pine);
+  color: #fff;
+}
+.flatpickr-calendar .flatpickr-day:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px #fff;
 }
 .cards {
   display: grid;
@@ -534,12 +553,6 @@ small,
   border-radius: 20px;
   white-space: nowrap;
   font-weight: 600;
-}
-.badge i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
 }
 .badge.cancelled,
 .badge.urgent,
@@ -687,8 +700,9 @@ small,
 .row-link > div {
   margin-right: auto;
 }
-.row-link h3 {
+.row-link :is(h2, h3) {
   margin: 4px 0;
+  font-size: 21px;
 }
 .row-link:hover {
   border-color: #99ad99;
@@ -1006,7 +1020,7 @@ small,
     padding: 16px;
     gap: 8px;
   }
-  .row-link h3 {
+  .row-link :is(h2, h3) {
     font-size: 18px;
   }
   .form-grid {
@@ -1066,4 +1080,125 @@ small,
 .deadline {
   display: flex;
   margin-top: 4px;
+}
+
+.inbox-link {
+  position: relative;
+  gap: 6px;
+}
+.inbox-link.active,
+.contrast-toggle[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+.unread-count {
+  padding: 1px 6px;
+  min-width: 20px;
+  text-align: center;
+  color: #fff;
+  background: #793a27;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.inbox-view {
+  max-width: 790px;
+  margin-inline: auto;
+}
+.inbox-list {
+  display: grid;
+  gap: 12px;
+}
+.inbox-message.unread {
+  border-inline-start: 4px solid var(--pine);
+}
+.message-meta,
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 14px;
+}
+.message-meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.inbox-message h2 {
+  display: block;
+  margin: 0;
+}
+.read-button {
+  margin-inline-start: auto;
+}
+button[aria-disabled="true"] {
+  cursor: default;
+  color: var(--muted);
+}
+.field [aria-invalid="true"] {
+  border: 2px solid #8a3426;
+}
+.filterline {
+  flex-wrap: wrap;
+}
+.high-contrast {
+  --pine: #12365c;
+  --muted: #283546;
+  --line: #596676;
+  --color-ink: #121b27;
+  --pale: #ecf1fa;
+  --focus: #142c9a;
+  background: #fff;
+}
+.high-contrast :is(.badge, .notice, .count) {
+  color: #142638;
+  background: #eef3fa;
+  border: 1px solid currentColor;
+}
+.high-contrast
+  :is(.badge.cancelled, .badge.returned, .badge.urgent, .notice.bad) {
+  color: #482800;
+  background: #fff1cf;
+}
+.high-contrast :is(.unread-count, .btn.primary, .loginbtn) {
+  background: #12365c;
+  color: #fff;
+}
+.high-contrast
+  :is(
+    .field input,
+    .field textarea,
+    .field select,
+    .btn,
+    .icon-btn,
+    .filterline input
+  ) {
+  border-color: var(--line);
+}
+.high-contrast :is(.textbtn, .back, .empty a) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.footer > div {
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 12px;
+}
+@media (max-width: 700px) {
+  .navinner nav {
+    flex-wrap: wrap;
+    gap: 0 14px;
+  }
+  .inbox-link {
+    min-width: 44px;
+    padding: 8px;
+  }
+  .inbox-label {
+    display: none;
+  }
+}
+@media (max-width: 480px) {
+  .account-name {
+    display: none;
+  }
 }

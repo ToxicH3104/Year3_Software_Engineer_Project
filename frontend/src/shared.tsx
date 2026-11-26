@@ -1,7 +1,9 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useId,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -10,6 +12,9 @@ import {
   ArrowLeft,
   Check,
   CircleAlert,
+  CircleCheck,
+  CircleX,
+  Pencil,
   Clock3,
   MapPin,
   Users,
@@ -65,16 +70,24 @@ export function isCalendarDay(day: string) {
     Number.isFinite(value.getTime()) && value.toISOString().slice(0, 10) === day
   );
 }
+export function normalizeClock(value: string) {
+  const parts = /^(\d{1,2})(?::?(\d{2}))?$/.exec(value.trim());
+  if (!parts) return null;
+  const [, hours, minutes = "00"] = parts;
+  if (Number(hours) > 23 || Number(minutes) > 59) return null;
+  return hours.padStart(2, "0") + ":" + minutes;
+}
+
 export function fromInput(value: string, field: string) {
   if (!value) return "";
-  if (
-    !isCalendarDay(value.slice(0, 10)) ||
-    !/^.{10}T([01]\d|2[0-3]):[0-5]\d$/.test(value)
-  ) {
-    const message = "Enter a date as YYYY-MM-DD and a 24-hour time as HH:mm.";
+  const day = value.slice(0, 10);
+  const clock = value[10] === "T" ? normalizeClock(value.slice(11)) : null;
+  if (!isCalendarDay(day) || clock === null) {
+    const message =
+      "Enter a date as YYYY-MM-DD and a 24-hour time such as 7 or 7:30.";
     throw new ApiError(message, 422, { [field]: message });
   }
-  return new Date(value + ":00+08:00").toISOString();
+  return new Date(day + "T" + clock + ":00+08:00").toISOString();
 }
 export const names: Record<string, string> = {
   open: "Open",
@@ -93,9 +106,23 @@ export const names: Record<string, string> = {
   withdrawn: "Withdrawn",
 };
 export function Badge({ value }: { value: string }) {
+  const icons = {
+    open: CircleCheck,
+    confirmed: CircleCheck,
+    approved: CircleCheck,
+    published: CircleCheck,
+    cancelled: CircleX,
+    closed: CircleX,
+    withdrawn: CircleX,
+    urgent: CircleAlert,
+    full: Users,
+    returned: Pencil,
+    draft: Pencil,
+  };
+  const Icon = icons[value as keyof typeof icons] ?? Clock3;
   return (
     <span className={"badge " + value}>
-      <i />
+      <Icon size={14} aria-hidden="true" />
       {names[value] || value}
     </span>
   );
@@ -192,10 +219,18 @@ export function Facts({ a }: { a: Activity }) {
   );
 }
 export function useAction() {
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMsg] = useState(""),
     [fields, setFields] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!error || !errorRef.current) return;
+    const first = errorRef.current
+      .closest("form")
+      ?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)');
+    (first ?? errorRef.current).focus();
+  }, [error, fields]);
   async function run(fn: () => Promise<void>, success = "") {
     if (busy) return;
     setBusy(true);
@@ -215,7 +250,7 @@ export function useAction() {
   const feedback = (
     <>
       {error && (
-        <p role="alert" className="notice bad">
+        <p ref={errorRef} tabIndex={-1} role="alert" className="notice bad">
           <CircleAlert size={16} />
           {error}
         </p>
