@@ -62,3 +62,8 @@ coverage/
 npm-debug.log*
 pnpm-debug.log*
 yarn-error.log*
+
+# ---- 本机工具链缓存（沙箱内运行时生成）----
+backend/.kotlin-cache/
+backend/.home-cache/
+frontend/.npm-cache/
