@@ -1,6 +1,7 @@
 package campus
 
 import campus.db.Database
+import campus.activities.notice
 import campus.http.*
 import io.kotest.core.spec.style.FreeSpec
 import io.ktor.client.HttpClient
@@ -131,6 +132,34 @@ private fun scenario(block: suspend Fixture.() -> Unit) = testApplication {
 
 class WorkflowTest :
     FreeSpec({
+        "Inbox receipts belong to the recipient and bulk reading preserves later arrivals" {
+            scenario {
+                val teacher = login("T001")
+                val organiser = login("O001")
+                val activity = submit(organiser)
+                decision(teacher, pending(teacher).text("reviewId")!!, "return", "Add a room.").expect(200)
+                val path = "/my/notices"
+                request(HttpMethod.Get, path).expect(401)
+                val first = request(HttpMethod.Get, path, organiser).asArray().single().jsonObject
+                check(first.text("activityTitle") == "Open rehearsal" && first["readAt"] == JsonNull)
+                val firstId = first.text("noticeId")!!
+                request(HttpMethod.Put, "$path/$firstId/read", teacher).expect(404)
+                request(HttpMethod.Put, "$path/read-through/$firstId", teacher).expect(404)
+                check(request(HttpMethod.Get, path, teacher).asArray().isEmpty())
+                db.transaction { notice("o1", activity, "review_returned", "Later feedback.") }
+                repeat(2) {
+                    check(request(HttpMethod.Put, "$path/read-through/$firstId", organiser)
+                        .asObject().number("unread") == 1)
+                }
+                val inbox = request(HttpMethod.Get, path, login("O001")).asArray()
+                check(inbox.last().jsonObject.text("readAt") != null)
+                val later = inbox.first().jsonObject
+                check(later["readAt"] == JsonNull)
+                request(HttpMethod.Put, "$path/${later.text("noticeId")}/read", organiser).expect(200)
+                check(request(HttpMethod.Get, "$path/unread", organiser).asObject().number("unread") == 0)
+            }
+        }
+
         "Teachers create clubs, appoint organisers and review the new club's activities" {
             scenario {
                 val path = "/teacher/clubs"

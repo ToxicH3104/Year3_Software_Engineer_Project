@@ -139,9 +139,11 @@ fun Tx.decide(actor: Actor, id: String, body: JsonObject): JsonObject {
                     if (shifted) "time_changed"
                     else if (f["location"] != a.fields["location"]) "venue_changed"
                     else "activity_changed"
-                val message =
-                    if (shifted) "The start time changed. Please confirm your reserved place."
-                    else "The approved activity details have changed."
+                val message = buildList {
+                    if (shifted) add("The start time changed. Please confirm your reserved place.")
+                    if (f["location"] != a.fields["location"]) add("The new venue is ${f.text("location")}.")
+                    if (isEmpty()) add("The approved activity details have changed.")
+                }.joinToString(" ")
                 notifyApprovedEdit(a, start, message, kind)
             }
             exec(

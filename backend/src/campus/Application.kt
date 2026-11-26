@@ -4,6 +4,7 @@ import campus.auth.authRoutes
 import campus.auth.grantOrganiser
 import campus.db.Database
 import campus.http.*
+import campus.inbox.inboxRoutes
 import campus.organiser.organiserRoutes
 import campus.student.studentRoutes
 import campus.teacher.teacherRoutes
@@ -107,6 +108,7 @@ fun Application.campusApi(db: Database, publicUrl: String, startWorker: Boolean 
     routing {
         route("/api") {
             authRoutes(api, uri.scheme == "https")
+            inboxRoutes(api)
             studentRoutes(api)
             organiserRoutes(api)
             teacherRoutes(api)

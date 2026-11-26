@@ -29,4 +29,8 @@ CREATE INDEX IF NOT EXISTS student_bookings ON registrations(studentId);
 
 CREATE TABLE IF NOT EXISTS notices(noticeId TEXT PRIMARY KEY, studentId TEXT NOT NULL REFERENCES users, activityId TEXT NOT NULL REFERENCES activities, type TEXT NOT NULL, message TEXT NOT NULL, createdAt TEXT NOT NULL);
 
+CREATE INDEX IF NOT EXISTS notices_by_recipient ON notices(studentId);
+
+CREATE TABLE IF NOT EXISTS notice_reads(noticeId TEXT PRIMARY KEY REFERENCES notices ON DELETE CASCADE, readAt TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS demo_credentials(userId TEXT PRIMARY KEY REFERENCES users,salt TEXT NOT NULL,digest TEXT NOT NULL);

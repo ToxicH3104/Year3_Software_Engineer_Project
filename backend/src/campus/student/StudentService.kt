@@ -144,12 +144,3 @@ fun Tx.setReminder(actor: Actor, id: String, body: JsonObject): JsonObject {
     exec("UPDATE registrations SET reminderAt=? WHERE registrationId=?", at, id)
     return booking(actor, id)
 }
-
-fun Tx.notices(actor: Actor) =
-    JsonArray(
-        rows(
-            """SELECT noticeId,type,activityId,message,createdAt FROM notices
-       WHERE studentId=? ORDER BY createdAt DESC,rowid DESC""",
-            actor.id,
-        )
-    )

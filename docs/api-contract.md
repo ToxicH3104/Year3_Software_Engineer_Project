@@ -76,7 +76,15 @@ Approval publishes the submitted snapshot. Return requires a reason. Both store 
 | POST | /api/my/registrations/{id}/confirm | Confirm a reserved place after a time change |
 | POST | /api/my/registrations/{id}/decline | Decline and release a reserved place |
 | PUT | /api/my/registrations/{id}/reminder | Future reminderAt before the activity, or `{"reminderAt":null}` to switch off |
-| GET | /api/my/notices | In-app notices for changes, cancellations, reminders, released places and returned submissions |
+
+All signed-in roles can access their own inbox.
+
+| Method | Path | Result |
+|---|---|---|
+| GET | /api/my/notices | Newest messages first, with activity title, optional booking ID and readAt (null while unread). |
+| GET | /api/my/notices/unread | Unread count for the signed-in account. |
+| PUT | /api/my/notices/{id}/read | Mark one message as read and return the unread count. |
+| PUT | /api/my/notices/read-through/{id} | Mark the displayed batch as read through its newest message. Later arrivals stay unread. |
 
 registrationClosesAt is the earlier of the stated registrationDeadline and 12 hours before the start. The student view displays this effective cutoff. Both confirmed and reserved places count towards capacity. An approved time change reserves existing places until 24 hours before the new start. At that cutoff unconfirmed places are released. Approved changes with the same start preserve existing registrations. SQLite write transactions protect the last seat and enforce one booking per student and activity. The server checks due reminders, expiring reservations and overdue reviews every 15 seconds and before API operations. After a restart it processes overdue work against persisted times.
 

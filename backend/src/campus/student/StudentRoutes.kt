@@ -28,6 +28,5 @@ fun Route.studentRoutes(api: Api) {
                 api.role(call, "student") { setReminder(it, call.param("id"), input) }
             }
         }
-        get("/notices") { api.role(call, "student") { notices(it) } }
     }
 }

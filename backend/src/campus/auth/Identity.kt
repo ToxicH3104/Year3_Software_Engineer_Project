@@ -120,11 +120,11 @@ private fun Tx.startSession(user: JsonObject, previous: String?): Pair<String, J
     return session to identity(user).profile
 }
 
-fun Actor?.requireRole(role: String): Actor {
-    if (this == null) throw ApiError(401, "NOT_SIGNED_IN", "Sign in to continue.")
-    if (role !in roles) forbidden()
-    return this
-}
+fun Actor?.requireSignedIn(): Actor =
+    this ?: throw ApiError(401, "NOT_SIGNED_IN", "Sign in to continue.")
+
+fun Actor?.requireRole(role: String): Actor =
+    requireSignedIn().also { if (role !in it.roles) forbidden() }
 
 fun Tx.hasClub(user: String, club: String, relation: String) =
     one(
