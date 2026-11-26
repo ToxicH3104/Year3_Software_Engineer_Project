@@ -159,6 +159,7 @@ fun Tx.decide(actor: Actor, id: String, body: JsonObject): JsonObject {
                 reason,
                 id,
             )
+            if (row.text("kind") == "new") notifyPublication(activity(a.id))
         }
         else -> invalid("Choose approve or return.")
     }

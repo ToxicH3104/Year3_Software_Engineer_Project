@@ -21,7 +21,12 @@ fun Route.inboxRoutes(api: Api) {
 
 private fun Tx.inbox(userId: String) = JsonArray(rows(
     """SELECT n.noticeId, n.activityId, n.type, n.message, n.createdAt, nr.readAt,
-              json_extract(a.fields,'$.title') AS activityTitle, r.registrationId
+              json_extract(a.fields,'$.title') AS activityTitle, r.registrationId,
+              CASE WHEN n.type='activity_published' AND a.status='published'
+                   AND (json_extract(a.fields,'$.visibility')='public' OR EXISTS (
+                       SELECT 1 FROM club_roles c WHERE c.clubId=a.clubId
+                       AND c.userId=n.studentId AND c.relation='member'
+                   )) THEN '/activities/' || a.activityId END AS activityLink
        FROM notices n JOIN activities a ON a.activityId=n.activityId
        LEFT JOIN notice_reads nr ON nr.noticeId=n.noticeId
        LEFT JOIN registrations r ON r.activityId=n.activityId AND r.studentId=n.studentId

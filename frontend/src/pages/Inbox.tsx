@@ -6,6 +6,7 @@ import { Heading, Load, moment, useAction, useSession } from "../shared";
 const notices = "/my/notices";
 const pollMs = 15_000;
 const titles: Record<string, string> = {
+  activity_published: "New activity",
   cancelled: "Activity cancelled",
   time_changed: "Time changed",
   venue_changed: "Venue changed",
@@ -92,12 +93,11 @@ export function Inbox({
         <ul className="inbox-list">
           {data.map((n) => {
             const review = n.type === "review_returned";
-            const destination =
-              review && user && hasRole(user, "organiser")
-                ? "/organiser/activities/" + n.activityId
-                : n.registrationId
-                  ? "/my/registrations/" + n.registrationId
-                  : null;
+            const activityLink = review && user && hasRole(user, "organiser")
+              ? "/organiser/activities/" + n.activityId
+              : n.activityLink;
+            const destination = activityLink ||
+              (n.registrationId ? "/my/registrations/" + n.registrationId : null);
             return (
               <li
                 key={n.noticeId}
@@ -112,7 +112,7 @@ export function Inbox({
                 <div className="message-actions">
                   {destination && (
                     <Link className="textbtn" to={destination}>
-                      {review ? "View activity" : "View booking"}
+                      {activityLink ? "View activity" : "View booking"}
                     </Link>
                   )}
                   <button

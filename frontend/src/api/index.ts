@@ -86,6 +86,7 @@ export interface Notice {
   createdAt: string;
   activityId: string;
   activityTitle: string | null;
+  activityLink: string | null;
   registrationId: string | null;
   readAt: string | null;
 }

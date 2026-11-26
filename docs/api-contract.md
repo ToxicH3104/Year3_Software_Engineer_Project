@@ -77,7 +77,7 @@ Approval publishes the submitted snapshot. Return requires a reason. Both store 
 | POST | /api/my/registrations/{id}/decline | Decline and release a reserved place |
 | PUT | /api/my/registrations/{id}/reminder | Future reminderAt before the activity, or `{"reminderAt":null}` to switch off |
 
-All signed-in roles can access their own inbox.
+All signed-in roles can access their own inbox. First approval creates one unread `activity_published` notice for every active account for a public activity, including organisers and teachers. For club-only activities, recipients must be members of the club. The notice includes an `activityLink` while its recipient can open the published activity. Later approvals of edits use the existing booking notifications.
 
 | Method | Path | Result |
 |---|---|---|

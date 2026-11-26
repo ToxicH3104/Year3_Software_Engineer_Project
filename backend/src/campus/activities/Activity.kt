@@ -134,3 +134,19 @@ fun Tx.summary(a: Activity): JsonObject {
 fun Tx.notice(student: String, activity: String, kind: String, message: String) {
     exec("INSERT INTO notices VALUES(?,?,?,?,?,?)", token(), student, activity, kind, message, time)
 }
+
+fun Tx.notifyPublication(activity: Activity) {
+    exec(
+        """INSERT INTO notices(noticeId, studentId, activityId, type, message, createdAt)
+           SELECT lower(hex(randomblob(16))), u.userId, ?, 'activity_published', ?, ?
+           FROM users u
+           WHERE u.accountStatus='active' AND (?='public' OR u.userId IN (
+               SELECT userId FROM club_roles WHERE clubId=? AND relation='member'
+           ))""",
+        activity.id,
+        "${activity.clubName} published a new activity.",
+        time,
+        activity.fields.text("visibility"),
+        activity.club,
+    )
+}

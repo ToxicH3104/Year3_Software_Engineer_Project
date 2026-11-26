@@ -598,7 +598,8 @@ class WorkflowTest :
                         .asObject()
                         .text("status") == "confirmed"
                 )
-                check(request(HttpMethod.Get, "/my/notices", org).asArray().size == 1)
+                check(request(HttpMethod.Get, "/my/notices", org).asArray().map { it.jsonObject.text("type") } ==
+                    listOf("review_returned", "activity_published"))
                 check(
                     db.transaction {
                         one(
@@ -624,6 +625,48 @@ class WorkflowTest :
                     request(HttpMethod.Get, "/teacher/history", teachers.first()).asArray().size ==
                         1
                 )
+                check(request(HttpMethod.Get, "/my/notices", teachers.first()).asArray().single()
+                    .jsonObject.text("type") == "activity_published")
+            }
+        }
+
+        "First publication notifies exactly the accounts that can browse the activity" {
+            scenario {
+                val accounts = listOf("S001", "S002", "S003", "O001", "O002", "T001", "T002")
+                    .associateWith { login(it) }
+                val organiser = accounts.getValue("O001")
+                val teacher = accounts.getValue("T001")
+                val path = "/my/notices"
+                val publicId = submit(organiser)
+                check(request(HttpMethod.Get, path, teacher).asArray().isEmpty())
+                db.transaction {
+                    exec("INSERT INTO users(userId,universityId,displayName,role,accountStatus) VALUES('inactive','X','X','student','suspended')")
+                }
+                decision(teacher, pending(teacher).text("reviewId")!!).expect(200)
+                for (cookie in accounts.values) {
+                    val item = request(HttpMethod.Get, path, cookie).asArray().single().jsonObject
+                    check(item.text("type") == "activity_published" && item["readAt"] == JsonNull)
+                    check(item.text("activityLink") == "/activities/$publicId")
+                    request(HttpMethod.Get, item.text("activityLink")!!, cookie).expect(200)
+                }
+                check(db.transaction { one("SELECT 1 FROM notices WHERE studentId='inactive'") } == null)
+                request(HttpMethod.Post, "/organiser/activities/$publicId/edits", organiser,
+                    obj("location" to "Room B")).expect(200)
+                decision(teacher, pending(teacher).text("reviewId")!!).expect(200)
+                val (clubId, _) = published(organiser, teacher, obj("visibility" to "club_only"))
+                for ((id, cookie) in accounts) {
+                    val messages = request(HttpMethod.Get, path, cookie).asArray().map { it.jsonObject }
+                    check(messages.count { it.text("activityId") == publicId } == 1)
+                    val restricted = messages.filter { it.text("activityId") == clubId }
+                    if (id == "S001") {
+                        val link = restricted.single().text("activityLink")!!
+                        check(link == "/activities/$clubId")
+                        request(HttpMethod.Get, link, cookie).expect(200)
+                    } else check(restricted.isEmpty())
+                }
+                request(HttpMethod.Post, "/organiser/activities/$publicId/cancel", organiser,
+                    obj("reason" to "Venue unavailable.")).expect(200)
+                check(request(HttpMethod.Get, path, teacher).asArray().single().jsonObject["activityLink"] == JsonNull)
             }
         }
 
@@ -790,7 +833,8 @@ class WorkflowTest :
                     .expect(200)
                 clock.at = clock.at.plusSeconds(3600)
                 repeat(2) { db.transaction { processDue() } }
-                check(request(HttpMethod.Get, "/my/notices", member).asArray().size == 1)
+                check(request(HttpMethod.Get, "/my/notices", member).asArray().map { it.jsonObject.text("type") } ==
+                    listOf("reminder", "activity_published"))
                 val (secondId, secondKey) = published(org, teacher)
                 check(
                     request(HttpMethod.Get, "/activities/$secondId")
